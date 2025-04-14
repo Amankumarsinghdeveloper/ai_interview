@@ -21,10 +21,27 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${monaSans.className} antialiased pattern`}>
-        {children}
+      <body
+        className={`${monaSans.className} antialiased pattern min-h-screen`}
+      >
+        <div className="relative z-0 min-h-screen">
+          <div className="absolute inset-0 bg-gradient-to-b from-primary-200/5 via-transparent to-transparent z-[-1]" />
+          {children}
+        </div>
 
-        <Toaster />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "hsl(var(--dark-200))",
+              color: "hsl(var(--light-100))",
+              borderRadius: "0.75rem",
+              fontSize: "0.875rem",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.2)",
+            },
+          }}
+        />
       </body>
     </html>
   );

@@ -1,48 +1,54 @@
-import { Controller, Control, FieldValues, Path } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 
 import {
+  FormControl,
+  FormField,
   FormItem,
   FormLabel,
-  FormControl,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
-interface FormFieldProps<T extends FieldValues> {
-  control: Control<T>;
-  name: Path<T>;
+interface CustomFormFieldProps {
+  name: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "email" | "password";
+  type?: string;
+  className?: string;
+  disabled?: boolean;
 }
 
-const FormField = <T extends FieldValues>({
-  control,
+const CustomFormField = ({
   name,
   label,
   placeholder,
   type = "text",
-}: FormFieldProps<T>) => {
+  className,
+  disabled = false,
+}: CustomFormFieldProps) => {
+  const { control } = useFormContext();
+
   return (
-    <Controller
+    <FormField
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel className="label">{label}</FormLabel>
+        <FormItem className={className}>
+          <FormLabel className="text-light-100 font-medium">{label}</FormLabel>
           <FormControl>
             <Input
-              className="input"
               type={type}
               placeholder={placeholder}
+              disabled={disabled}
+              className="h-12 rounded-xl border border-light-800/20 bg-dark-200 px-5 text-light-100 shadow-sm transition-all focus-visible:ring-4 focus-visible:ring-primary-200/20 focus-visible:border-primary-200/50"
               {...field}
             />
           </FormControl>
-          <FormMessage />
+          <FormMessage className="text-sm font-medium text-destructive-100" />
         </FormItem>
       )}
     />
   );
 };
 
-export default FormField;
+export default CustomFormField;

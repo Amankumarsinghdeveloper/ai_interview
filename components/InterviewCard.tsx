@@ -28,70 +28,92 @@ const InterviewCard = async ({
 
   const badgeColor =
     {
-      Behavioral: "bg-light-400",
-      Mixed: "bg-light-600",
-      Technical: "bg-light-800",
-    }[normalizedType] || "bg-light-600";
+      Behavioral: "bg-primary-100/80 text-primary-200",
+      Mixed: "bg-light-400/20 text-light-100",
+      Technical: "bg-primary-200/80 text-white",
+    }[normalizedType] || "bg-light-400/20 text-light-100";
 
   const formattedDate = dayjs(
     feedback?.createdAt || createdAt || Date.now()
   ).format("MMM D, YYYY");
 
   return (
-    <div className="card-border w-[360px] max-sm:w-full min-h-96">
-      <div className="card-interview">
+    <div className="group hover:scale-[1.02] transition-all duration-300">
+      <div className="card-interview backdrop-filter backdrop-blur-sm border border-light-800/10 shadow-xl group-hover:shadow-2xl">
         <div>
           {/* Type Badge */}
           <div
             className={cn(
-              "absolute top-0 right-0 w-fit px-4 py-2 rounded-bl-lg",
+              "absolute top-3 right-3 w-fit px-4 py-1.5 rounded-full text-xs font-semibold shadow-md",
               badgeColor
             )}
           >
-            <p className="badge-text ">{normalizedType}</p>
+            <p className="badge-text">{normalizedType}</p>
           </div>
 
           {/* Cover Image */}
-          <Image
-            src={getRandomInterviewCover()}
-            alt="cover-image"
-            width={90}
-            height={90}
-            className="rounded-full object-fit size-[90px]"
-          />
+          <div className="flex items-center justify-center mb-6">
+            <Image
+              src={getRandomInterviewCover()}
+              alt="cover-image"
+              width={90}
+              height={90}
+              className="rounded-full object-cover size-24 shadow-lg border-2 border-primary-200/20"
+            />
+          </div>
 
           {/* Interview Role */}
-          <h3 className="mt-5 capitalize">{role} Interview</h3>
+          <h3 className="text-center capitalize text-white mb-4">
+            {role} Interview
+          </h3>
 
           {/* Date & Score */}
-          <div className="flex flex-row gap-5 mt-3">
-            <div className="flex flex-row gap-2">
-              <Image
-                src="/calendar.svg"
-                width={22}
-                height={22}
-                alt="calendar"
-              />
-              <p>{formattedDate}</p>
+          <div className="flex flex-row justify-center gap-6 mt-3">
+            <div className="flex flex-row gap-2 items-center">
+              <div className="bg-dark-300 p-2 rounded-full">
+                <Image
+                  src="/calendar.svg"
+                  width={18}
+                  height={18}
+                  alt="calendar"
+                  className="opacity-80"
+                />
+              </div>
+              <p className="text-sm">{formattedDate}</p>
             </div>
 
             <div className="flex flex-row gap-2 items-center">
-              <Image src="/star.svg" width={22} height={22} alt="star" />
-              <p>{feedback?.totalScore || "---"}/100</p>
+              <div className="bg-dark-300 p-2 rounded-full">
+                <Image
+                  src="/star.svg"
+                  width={18}
+                  height={18}
+                  alt="star"
+                  className="opacity-80"
+                />
+              </div>
+              <p className="text-sm">{feedback?.totalScore || "---"}/100</p>
             </div>
           </div>
 
           {/* Feedback or Placeholder Text */}
-          <p className="line-clamp-2 mt-5">
-            {feedback?.finalAssessment ||
-              "You haven't taken this interview yet. Take it now to improve your skills."}
-          </p>
+          <div className="mt-6 p-4 bg-dark-300/50 rounded-xl">
+            <p className="line-clamp-2 text-sm">
+              {feedback?.finalAssessment ||
+                "You haven't taken this interview yet. Take it now to improve your skills."}
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-row justify-between">
+        <div className="flex flex-row justify-between items-center">
           <DisplayTechIcons techStack={techstack} />
 
-          <Button className="btn-primary">
+          <Button
+            variant={feedback ? "default" : "secondary"}
+            size="sm"
+            className="font-semibold"
+            asChild
+          >
             <Link
               href={
                 feedback
@@ -99,7 +121,7 @@ const InterviewCard = async ({
                   : `/interview/${interviewId}`
               }
             >
-              {feedback ? "Check Feedback" : "View Interview"}
+              {feedback ? "View Feedback" : "Start Interview"}
             </Link>
           </Button>
         </div>
