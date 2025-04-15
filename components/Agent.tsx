@@ -38,68 +38,40 @@ const Agent = ({
   const [lastMessage, setLastMessage] = useState<string>("");
   const [isChecking, setIsChecking] = useState(false);
   const [availableCredits, setAvailableCredits] = useState(0);
-  const [creditMonitorInterval, setCreditMonitorInterval] =
-    useState<NodeJS.Timeout | null>(null);
-  const [remainingMinutes, setRemainingMinutes] = useState<number | null>(null);
 
   // Track interview duration for credit deduction
   const startTimeRef = useRef<number | null>(null);
   const endTimeRef = useRef<number | null>(null);
+  // Add timer to check credits during call
+  const creditCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const maxCallDurationInMinutes = useRef<number>(0);
 
   useEffect(() => {
     const onCallStart = () => {
       setCallStatus(CallStatus.ACTIVE);
       // Record start time when call begins
       startTimeRef.current = Date.now();
-      console.log("Call started, tracking time for credit deduction");
 
-      // Start monitoring credits to end call if credits run out
-      if (userId) {
-        // Initialize remaining minutes
-        setRemainingMinutes(availableCredits);
+      // Set up periodic credit check during the call - every 30 seconds
+      if (userId && availableCredits > 0) {
+        creditCheckIntervalRef.current = setInterval(async () => {
+          // Calculate elapsed minutes
+          const elapsedMs = Date.now() - (startTimeRef.current || Date.now());
+          const elapsedMinutes = Math.ceil(elapsedMs / (1000 * 60));
 
-        // Update remaining time every second
-        const countdownInterval = setInterval(() => {
-          if (startTimeRef.current) {
-            const elapsedMs = Date.now() - startTimeRef.current;
-            const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
-            const remaining = Math.max(0, availableCredits - elapsedMinutes);
-            setRemainingMinutes(remaining);
-
-            // End call if time is up
-            if (remaining <= 0) {
-              toast.error("Your credits have been exhausted. Call ending.");
-              handleDisconnect();
-              clearInterval(countdownInterval);
-            }
+          // If we're approaching the credit limit, warn the user
+          if (elapsedMinutes >= maxCallDurationInMinutes.current - 1) {
+            toast.warning(
+              "You're about to reach your credit limit. The call will end soon."
+            );
           }
-        }, 1000);
 
-        // Store interval ID for cleanup
-        setCreditMonitorInterval(countdownInterval);
-
-        // Check credit balance from server every 30 seconds
-        const serverCheckInterval = setInterval(async () => {
-          try {
-            // Check remaining credits
-            const response = await hasEnoughCredits(userId, 1);
-            if (response.success) {
-              const { hasEnough, availableCredits: credits } = response;
-              setAvailableCredits(credits);
-
-              // If credits are exhausted, end the call
-              if (!hasEnough || credits <= 0) {
-                console.log("Credits exhausted, ending call automatically");
-                toast.error("Your credits have been exhausted. Call ending.");
-                handleDisconnect();
-                clearInterval(serverCheckInterval);
-                clearInterval(countdownInterval);
-              }
-            }
-          } catch (error) {
-            console.error("Error monitoring credits:", error);
+          // If we've reached or exceeded the credit limit, end the call
+          if (elapsedMinutes >= maxCallDurationInMinutes.current) {
+            toast.error("Credit limit reached. Ending call.");
+            handleDisconnect();
           }
-        }, 30000);
+        }, 30000); // Check every 30 seconds
       }
     };
 
@@ -107,12 +79,11 @@ const Agent = ({
       setCallStatus(CallStatus.FINISHED);
       // Record end time when call ends
       endTimeRef.current = Date.now();
-      console.log("Call ended, calculating credits to deduct");
 
-      // Clear credit monitoring when call ends
-      if (creditMonitorInterval) {
-        clearInterval(creditMonitorInterval);
-        setCreditMonitorInterval(null);
+      // Clear credit check interval if it exists
+      if (creditCheckIntervalRef.current) {
+        clearInterval(creditCheckIntervalRef.current);
+        creditCheckIntervalRef.current = null;
       }
     };
 
@@ -178,80 +149,20 @@ const Agent = ({
     };
 
     const handleSessionEnd = async () => {
-      if (!userId) {
-        console.error("No user ID available for credit deduction");
-        return;
-      }
-
-      if (!startTimeRef.current) {
-        console.error("Start time not recorded for credit deduction");
-        return;
-      }
-
-      if (!endTimeRef.current) {
-        console.error("End time not recorded for credit deduction");
-        endTimeRef.current = Date.now(); // Fallback to current time if end time wasn't recorded
-      }
+      if (!userId || !startTimeRef.current || !endTimeRef.current) return;
 
       // Calculate minutes used (rounded up to the nearest minute)
       const timeUsed = endTimeRef.current - startTimeRef.current;
-
-      // Validate the time used is reasonable (between 5 seconds and 2 hours)
-      if (timeUsed < 5000) {
-        console.log("Interview was too short, using minimum 1 credit");
-        try {
-          // Deduct at least 1 credit for any interview
-          const result = await deductCredits(userId, 1);
-          if (result.success) {
-            toast.info("Used 1 credit");
-            console.log(
-              "Successfully deducted 1 credit, new total:",
-              result.newTotal
-            );
-          } else {
-            console.error("Failed to deduct minimum credit:", result.message);
-            toast.error("Failed to deduct credits. Please contact support.");
-          }
-        } catch (error) {
-          console.error("Error deducting minimum credit:", error);
-          toast.error("An error occurred while updating your credits.");
-        }
-
-        if (type === "generate") {
-          router.push("/");
-        } else {
-          await handleGenerateFeedback(messages);
-        }
-        return;
-      }
-
-      if (timeUsed > 7200000) {
-        // 2 hours in milliseconds
-        console.error("Suspicious interview duration:", timeUsed);
-      }
-
       const minutesUsed = Math.ceil(timeUsed / (1000 * 60));
-      console.log(`Interview lasted ${timeUsed}ms (${minutesUsed} minutes)`);
 
-      // Deduct credits based on time used (ensure at least 1 credit is used)
-      const creditsToDeduct = Math.max(1, minutesUsed);
-
-      try {
-        const result = await deductCredits(userId, creditsToDeduct);
+      // Deduct credits based on time used
+      if (minutesUsed > 0) {
+        const result = await deductCredits(userId, minutesUsed);
         if (result.success) {
-          toast.info(
-            `Used ${creditsToDeduct} credit${creditsToDeduct > 1 ? "s" : ""}`
-          );
-          console.log(
-            `Successfully deducted ${creditsToDeduct} credits, new total: ${result.newTotal}`
-          );
+          toast.info(`Used ${minutesUsed} credit${minutesUsed > 1 ? "s" : ""}`);
         } else {
-          console.error("Failed to deduct credits:", result.message);
-          toast.error("Failed to deduct credits. Please contact support.");
+          toast.error("Failed to deduct credits: " + result.message);
         }
-      } catch (error) {
-        console.error("Error deducting credits:", error);
-        toast.error("An error occurred while updating your credits.");
       }
 
       if (type === "generate") {
@@ -264,16 +175,14 @@ const Agent = ({
     if (callStatus === CallStatus.FINISHED) {
       handleSessionEnd();
     }
-  }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
 
-  useEffect(() => {
     // Clean up interval on component unmount
     return () => {
-      if (creditMonitorInterval) {
-        clearInterval(creditMonitorInterval);
+      if (creditCheckIntervalRef.current) {
+        clearInterval(creditCheckIntervalRef.current);
       }
     };
-  }, [creditMonitorInterval]);
+  }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
 
   const checkCredits = async () => {
     if (!userId) {
@@ -285,32 +194,33 @@ const Agent = ({
     setIsChecking(true);
 
     try {
-      // Require at least 5 credits for a meaningful interview
+      // Check for minimum 5 credits to start a call
+      // This assumes a reasonable minimum interview length
       const minimumCreditsRequired = 5;
-      const response = await hasEnoughCredits(userId, minimumCreditsRequired);
-
-      if (!response.success) {
-        toast.error(
-          response.message || "Failed to check credits. Please try again."
-        );
-        return false;
-      }
-
-      const { hasEnough, availableCredits: credits } = response;
+      const { hasEnough, availableCredits: credits } = await hasEnoughCredits(
+        userId,
+        minimumCreditsRequired
+      );
       setAvailableCredits(credits);
+
+      // Set the maximum call duration based on available credits
+      maxCallDurationInMinutes.current = credits;
 
       if (!hasEnough) {
         toast.error(
-          `Insufficient credits. You have ${credits} credits but need at least ${minimumCreditsRequired}. Please purchase more.`
+          `You need at least ${minimumCreditsRequired} credits to start an interview. Please purchase more.`
         );
         router.push("/profile");
         return false;
       }
 
-      // Show the user how long their interview can last
-      toast.info(
-        `You have enough credits for ~${credits} minutes of interview time`
-      );
+      // Warn if they have less than 10 credits
+      if (credits < 10) {
+        toast.warning(
+          `You have ${credits} credits. This may limit your interview time.`
+        );
+      }
+
       return true;
     } catch (error) {
       console.error("Error checking credits:", error);
@@ -352,55 +262,14 @@ const Agent = ({
   };
 
   const handleDisconnect = () => {
+    // Clear any active timers
+    if (creditCheckIntervalRef.current) {
+      clearInterval(creditCheckIntervalRef.current);
+      creditCheckIntervalRef.current = null;
+    }
+
     setCallStatus(CallStatus.FINISHED);
     vapi.stop();
-
-    // Clear credit monitoring interval
-    if (creditMonitorInterval) {
-      clearInterval(creditMonitorInterval);
-      setCreditMonitorInterval(null);
-    }
-
-    // If call started but handleSessionEnd hasn't been triggered,
-    // manually set the end time to ensure credits are deducted
-    if (startTimeRef.current && !endTimeRef.current) {
-      endTimeRef.current = Date.now();
-
-      // Immediately deduct credits based on time used
-      const timeUsed = endTimeRef.current - startTimeRef.current;
-      const minutesUsed = Math.ceil(timeUsed / (1000 * 60));
-
-      console.log(
-        `Call manually ended. Time used: ${timeUsed}ms (${minutesUsed} minutes)`
-      );
-
-      // Ensure at least 1 credit is used for any call, even very short ones
-      const creditsToDeduct = Math.max(1, minutesUsed);
-
-      if (userId) {
-        // Immediately trigger credit deduction
-        deductCredits(userId, creditsToDeduct)
-          .then((result) => {
-            if (result.success) {
-              toast.info(
-                `Used ${creditsToDeduct} credit${
-                  creditsToDeduct > 1 ? "s" : ""
-                }`
-              );
-              console.log(
-                `Credits deducted: ${creditsToDeduct}, new total: ${result.newTotal}`
-              );
-            } else {
-              console.error("Failed to deduct credits:", result.message);
-              toast.error("Failed to deduct credits. Please contact support.");
-            }
-          })
-          .catch((error) => {
-            console.error("Error deducting credits:", error);
-            toast.error("An error occurred while updating your credits.");
-          });
-      }
-    }
   };
 
   return (
@@ -433,27 +302,9 @@ const Agent = ({
             />
             <h3>{userName}</h3>
             {availableCredits > 0 && (
-              <div className="text-center">
-                <p className="text-sm text-gray-400">
-                  {availableCredits} credits available
-                </p>
-                {callStatus === CallStatus.ACTIVE &&
-                  remainingMinutes !== null && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        remainingMinutes <= 2
-                          ? "text-red-400 font-bold"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {remainingMinutes <= 0
-                        ? "Call ending..."
-                        : `Call will end in ${remainingMinutes} minute${
-                            remainingMinutes !== 1 ? "s" : ""
-                          }`}
-                    </p>
-                  )}
-              </div>
+              <p className="text-sm text-gray-400">
+                {availableCredits} credits available
+              </p>
             )}
           </div>
         </div>
