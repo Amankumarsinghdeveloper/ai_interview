@@ -33,15 +33,14 @@ const AuthForm = ({ type }: { type: FormType }) => {
         return;
       }
 
-      // For sign up, create the user in our database
-      if (!isSignIn) {
-        await signUp({
-          uid: user.uid,
-          name: user.displayName || user.email.split("@")[0],
-          email: user.email,
-          password: "", // Not needed for Google auth
-        });
-      }
+      // Always create the user in our database regardless of sign-in or sign-up
+      // This ensures a user document exists when logging in with Google
+      await signUp({
+        uid: user.uid,
+        name: user.displayName || user.email.split("@")[0],
+        email: user.email,
+        password: "", // Not needed for Google auth
+      });
 
       // Sign in the user with our app
       await signIn({

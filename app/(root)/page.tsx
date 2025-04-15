@@ -13,10 +13,19 @@ import { getUserCredits } from "@/lib/actions/credit.action";
 async function Home() {
   const user = await getCurrentUser();
 
+  // If no user is found, redirect to sign-in page (should not happen due to middleware)
+  if (!user) {
+    return (
+      <div className="text-center p-8">
+        <p>No user found. Please sign in again.</p>
+      </div>
+    );
+  }
+
   const [userInterviews, allInterview, userCredits] = await Promise.all([
-    getInterviewsByUserId(user?.id || ""),
-    getLatestInterviews({ userId: user?.id || "" }),
-    getUserCredits(user?.id || ""),
+    getInterviewsByUserId(user.id || ""),
+    getLatestInterviews({ userId: user.id || "" }),
+    getUserCredits(user.id || ""),
   ]);
 
   const hasPastInterviews = (userInterviews?.length || 0) > 0;

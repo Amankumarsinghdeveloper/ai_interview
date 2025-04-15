@@ -35,11 +35,13 @@ export async function signUp(params: SignUpParams) {
   try {
     // check if user exists in db
     const userRecord = await db.collection("users").doc(uid).get();
-    if (userRecord.exists)
+    if (userRecord.exists) {
+      // If user already exists, just return success without an error
       return {
-        success: false,
-        message: "User already exists. Please sign in.",
+        success: true,
+        message: "User already exists.",
       };
+    }
 
     // Generate a unique referral code for this user
     const newReferralCode = uuidv4().substring(0, 8);

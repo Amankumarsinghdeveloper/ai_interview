@@ -43,6 +43,15 @@ export async function initializeUserCredits(userId: string) {
 // Get user credits
 export async function getUserCredits(userId: string) {
   try {
+    // Return default response if userId is empty
+    if (!userId) {
+      return {
+        success: false,
+        message: "No user ID provided",
+        credits: 0,
+      };
+    }
+
     const userDoc = await db.collection("users").doc(userId).get();
 
     if (!userDoc.exists) {
