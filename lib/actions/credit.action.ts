@@ -5,7 +5,7 @@ import { db } from "@/firebase/admin";
 // Constants for credits (used internally)
 const DEFAULT_INITIAL_CREDITS = 15; // 15 minutes
 const CREDIT_COST_PER_MINUTE = 1; // 1 credit = 1 minute
-const CREDIT_PRICE_IN_RS = 4; // Rs. 4 per credit
+const CREDIT_PRICE_IN_RS = 0.045; // $0.045 per credit
 
 // Async functions to return constants for client components
 export async function getDefaultInitialCredits() {

@@ -60,7 +60,7 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
     }
   };
 
-  const totalCost = amount * creditPrice;
+  const totalCost = (amount * creditPrice).toFixed(2);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -102,11 +102,11 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
       <div className="bg-dark-300 p-4 rounded-md">
         <div className="flex justify-between">
           <span>Unit Price:</span>
-          <span>Rs. {creditPrice} per credit</span>
+          <span>$ {creditPrice} per credit</span>
         </div>
         <div className="flex justify-between font-bold mt-2 pt-2 border-t border-gray-700">
           <span>Total:</span>
-          <span>Rs. {totalCost}</span>
+          <span>$ {totalCost}</span>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
       >
         {isLoading
           ? "Processing..."
-          : `Buy ${amount} Credits for Rs. ${totalCost}`}
+          : `Buy ${amount} Credits for $ ${totalCost}`}
       </button>
 
       <p className="text-xs text-gray-500 mt-2">

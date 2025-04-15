@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/credit.action";
 import CreditStatus from "@/components/CreditStatus";
 import TransactionHistory from "@/components/TransactionHistory";
+// import BuyCreditsForm from "@/components/BuyCreditsForm";
 // import { ReferralShare } from "@/components/ReferralShare";
 
 const ProfilePage = async () => {
@@ -134,12 +135,12 @@ const ProfilePage = async () => {
             </p>
             <div className="flex items-center bg-purple-900/30 px-4 py-2 rounded-full">
               <span className="text-gray-300 text-sm mr-2">Price:</span>
-              <span className="text-green-400 font-bold">
-                Rs. {creditPrice}
-              </span>
+              <span className="text-green-400 font-bold">$ {creditPrice}</span>
               <span className="text-gray-400 ml-1 text-xs">/credit</span>
             </div>
           </div>
+
+          {/* <BuyCreditsForm userId={user.id} creditPrice={creditPrice} /> */}
 
           <div className="bg-yellow-500/10 border border-yellow-600/30 rounded-lg p-4 text-center">
             <h3 className="text-yellow-300 font-medium text-lg mb-2">
