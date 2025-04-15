@@ -60,30 +60,36 @@ const Agent = ({
       // Initialize last deduction time to start time
       lastDeductionTimeRef.current = Date.now();
 
-      // Set up periodic credit check and deduction during the call - every 60 seconds
+      // Set up periodic credit check and deduction during the call - every 10 seconds
       if (userId && availableCredits > 0) {
         creditCheckIntervalRef.current = setInterval(async () => {
           // If deduction is already in progress, skip this cycle
           if (isDeductingRef.current) return;
 
-          // Calculate elapsed time since last deduction in minutes
+          // Calculate elapsed time since last deduction in milliseconds
           const currentTime = Date.now();
           const elapsedSinceLastDeduction =
-            (currentTime - (lastDeductionTimeRef.current || currentTime)) /
-            (1000 * 60);
+            currentTime - (lastDeductionTimeRef.current || currentTime);
 
-          // Deduct credits every minute (or when elapsed time exceeds 1 minute)
-          if (elapsedSinceLastDeduction >= 1) {
+          // Convert to minutes with 2 decimal places precision (60000ms = 1 minute)
+          const elapsedMinutes = parseFloat(
+            (elapsedSinceLastDeduction / 60000).toFixed(2)
+          );
+
+          // Deduct credits if at least 0.1 minutes (6 seconds) has passed
+          if (elapsedMinutes >= 0.1) {
             isDeductingRef.current = true;
 
             try {
-              // Deduct 1 credit (1 minute worth)
-              const result = await deductCredits(userId, 1);
+              // Deduct credits with decimal precision
+              const result = await deductCredits(userId, elapsedMinutes);
 
               if (result.success) {
-                // Update available credits
-                setAvailableCredits((prev) => Math.max(prev - 1, 0));
-                // Update last deduction time
+                // Update available credits with decimal precision
+                setAvailableCredits((prev) =>
+                  parseFloat(Math.max(prev - elapsedMinutes, 0).toFixed(2))
+                );
+                // Update last deduction time precisely
                 lastDeductionTimeRef.current = currentTime;
 
                 // Save session info to localStorage to handle page refresh
@@ -102,6 +108,12 @@ const Agent = ({
                   );
                   localStorage.setItem("interviewId", interviewId || "");
                 }
+
+                console.log(
+                  `Deducted ${elapsedMinutes.toFixed(
+                    2
+                  )} credit(s). Remaining: ${(result.newTotal || 0).toFixed(2)}`
+                );
 
                 // If credits reach 0, end the call
                 if ((result.newTotal ?? 0) <= 0) {
@@ -124,7 +136,7 @@ const Agent = ({
               isDeductingRef.current = false;
             }
           }
-        }, 10000); // Check every 10 seconds to ensure we don't miss the minute mark
+        }, 10000); // Check every 10 seconds for more granular credit tracking
       }
     };
 
@@ -207,12 +219,29 @@ const Agent = ({
       // With the new per-minute credit deduction system, we only need to calculate
       // and deduct any remaining time since the last deduction
       if (lastDeductionTimeRef.current) {
-        const remainingTime = endTimeRef.current - lastDeductionTimeRef.current;
-        // Only deduct if there's at least 30 seconds remaining (half a minute)
-        if (remainingTime >= 30000) {
-          const result = await deductCredits(userId, 1); // Deduct 1 final credit
-          if (result.success) {
-            toast.info("Deducted 1 credit for final partial minute");
+        const remainingTimeMs =
+          endTimeRef.current - lastDeductionTimeRef.current;
+        // Convert to minutes with 2 decimal precision
+        const remainingTimeMinutes = parseFloat(
+          (remainingTimeMs / 60000).toFixed(2)
+        );
+
+        // Only deduct if there's at least 0.1 minutes (6 seconds) remaining
+        if (remainingTimeMinutes >= 0.1) {
+          try {
+            const result = await deductCredits(userId, remainingTimeMinutes);
+            if (result.success) {
+              setAvailableCredits((prev) =>
+                parseFloat(Math.max(prev - remainingTimeMinutes, 0).toFixed(2))
+              );
+              toast.info(
+                `Deducted ${remainingTimeMinutes.toFixed(
+                  2
+                )} credits for final partial minute`
+              );
+            }
+          } catch (error) {
+            console.error("Error deducting final credit:", error);
           }
         }
       }
@@ -264,31 +293,50 @@ const Agent = ({
       ) {
         const lastDeductionTime = parseInt(savedLastDeductionTime);
 
-        // Calculate minutes passed since last deduction
-        const minutesPassed = Math.floor(
-          (Date.now() - lastDeductionTime) / (1000 * 60)
+        // Calculate minutes passed since last deduction with 2 decimal precision
+        const minutesPassed = parseFloat(
+          ((Date.now() - lastDeductionTime) / 60000).toFixed(2)
         );
 
-        // Only deduct if at least 1 minute has passed
-        if (minutesPassed >= 1) {
-          // Deduct credits for time passed during page refresh
-          const result = await deductCredits(userId, minutesPassed);
+        // Only deduct if at least 0.1 minutes (6 seconds) has passed
+        if (minutesPassed >= 0.1) {
+          try {
+            // Deduct credits for time passed during page refresh with decimal precision
+            const result = await deductCredits(userId, minutesPassed);
 
-          if (result.success) {
-            toast.info(
-              `Deducted ${minutesPassed} credit${
-                minutesPassed > 1 ? "s" : ""
-              } for your previous session`
-            );
+            if (result.success) {
+              setAvailableCredits((prev) =>
+                parseFloat(Math.max((prev || 0) - minutesPassed, 0).toFixed(2))
+              );
 
-            // Update session data or clear if starting a new session
-            if (callStatus === CallStatus.INACTIVE) {
-              // Clean up as we're starting fresh
-              localStorage.removeItem("interviewSessionId");
-              localStorage.removeItem("interviewStartTime");
-              localStorage.removeItem("lastDeductionTime");
-              localStorage.removeItem("interviewId");
+              toast.info(
+                `Deducted ${minutesPassed.toFixed(2)} credit${
+                  minutesPassed !== 1 ? "s" : ""
+                } for your previous session`
+              );
+
+              // Update the last deduction time to now
+              if (callStatus === CallStatus.ACTIVE) {
+                lastDeductionTimeRef.current = Date.now();
+                if (typeof window !== "undefined") {
+                  localStorage.setItem(
+                    "lastDeductionTime",
+                    String(lastDeductionTimeRef.current)
+                  );
+                }
+              } else if (callStatus === CallStatus.INACTIVE) {
+                // Clean up as we're starting fresh
+                localStorage.removeItem("interviewSessionId");
+                localStorage.removeItem("interviewStartTime");
+                localStorage.removeItem("lastDeductionTime");
+                localStorage.removeItem("interviewId");
+              }
             }
+          } catch (error) {
+            console.error(
+              "Error deducting credits for unfinished session:",
+              error
+            );
           }
         }
       }
@@ -310,19 +358,21 @@ const Agent = ({
       ) {
         const currentTime = Date.now();
 
-        // Calculate time since last deduction in minutes
-        const minutesSinceLastDeduction = Math.floor(
-          (currentTime - lastDeductionTimeRef.current) / (1000 * 60)
+        // Calculate time since last deduction in minutes with 2 decimal precision
+        const minutesSinceLastDeduction = parseFloat(
+          ((currentTime - lastDeductionTimeRef.current) / 60000).toFixed(2)
         );
 
-        // Only deduct if there's at least one minute elapsed since last deduction
-        if (minutesSinceLastDeduction >= 1) {
+        // Only deduct if there's at least 0.1 minute elapsed since last deduction
+        if (minutesSinceLastDeduction >= 0.1) {
           // Fire and forget - we can't await in the cleanup function
           deductCredits(userId, minutesSinceLastDeduction)
             .then(() => {
               // We can't show toasts here as the component is unmounting
               console.log(
-                `Unmount: Deducted ${minutesSinceLastDeduction} credits`
+                `Unmount: Deducted ${minutesSinceLastDeduction.toFixed(
+                  2
+                )} credits`
               );
             })
             .catch((err) => {
@@ -424,15 +474,82 @@ const Agent = ({
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
+    // Record end time when manually disconnecting
+    endTimeRef.current = Date.now();
+
     // Clear any active timers
     if (creditCheckIntervalRef.current) {
       clearInterval(creditCheckIntervalRef.current);
       creditCheckIntervalRef.current = null;
     }
 
+    // Handle final credit deduction before stopping the call
+    if (userId && startTimeRef.current && lastDeductionTimeRef.current) {
+      const remainingTimeMs = endTimeRef.current - lastDeductionTimeRef.current;
+      // Convert to minutes with 2 decimal precision
+      const remainingTimeMinutes = parseFloat(
+        (remainingTimeMs / 60000).toFixed(2)
+      );
+
+      // Only deduct if there's at least 0.1 minutes (6 seconds) remaining
+      if (remainingTimeMinutes >= 0.1) {
+        try {
+          const result = await deductCredits(userId, remainingTimeMinutes);
+          if (result.success) {
+            setAvailableCredits((prev) =>
+              parseFloat(Math.max(prev - remainingTimeMinutes, 0).toFixed(2))
+            );
+            toast.info(
+              `Deducted ${remainingTimeMinutes.toFixed(
+                2
+              )} credits for final partial minute`
+            );
+          }
+        } catch (error) {
+          console.error("Error deducting final credit:", error);
+        }
+      }
+    }
+
+    // Clean up session data from localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("interviewSessionId");
+      localStorage.removeItem("interviewStartTime");
+      localStorage.removeItem("lastDeductionTime");
+      localStorage.removeItem("interviewId");
+    }
+
     setCallStatus(CallStatus.FINISHED);
     vapi.stop();
+
+    // Handle feedback generation directly if needed
+    if (type !== "generate" && interviewId && userId && messages.length > 0) {
+      console.log("Generating feedback after manual disconnect");
+      try {
+        const { success, feedbackId: id } = await createFeedback({
+          interviewId: interviewId,
+          userId: userId,
+          transcript: messages,
+          feedbackId,
+        });
+
+        if (success && id) {
+          toast.success("Interview feedback generated");
+          router.push(`/interview/${interviewId}/feedback`);
+        } else {
+          console.error("Error saving feedback");
+          toast.error("Failed to generate feedback");
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("Error generating feedback:", error);
+        toast.error("Failed to generate feedback");
+        router.push("/");
+      }
+    } else if (type === "generate") {
+      router.push("/");
+    }
   };
 
   return (
@@ -466,7 +583,7 @@ const Agent = ({
             <h3>{userName}</h3>
             {availableCredits > 0 && (
               <p className="text-sm text-gray-400">
-                {availableCredits} credits available
+                {availableCredits.toFixed(2)} credits available
               </p>
             )}
           </div>
