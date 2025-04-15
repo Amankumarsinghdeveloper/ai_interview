@@ -35,14 +35,30 @@ export default async function RootLayout({
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+                {user.email === "amankumarsing956@gmail.com" && (
+                  <div className="flex items-center gap-3 mr-2">
+                    <Link
+                      href="/admin/users"
+                      className="text-sm font-medium text-yellow-400 hover:text-yellow-300 transition-colors"
+                    >
+                      Admin: Users
+                    </Link>
+                    <Link
+                      href="/admin/referrals"
+                      className="text-sm font-medium text-yellow-400 hover:text-yellow-300 transition-colors"
+                    >
+                      Admin: Referrals
+                    </Link>
+                  </div>
+                )}
+                <Link href="/profile" className="flex items-center gap-2">
                   <div className="size-9 rounded-full bg-primary-200 flex items-center justify-center text-white font-bold">
                     {user.name?.charAt(0).toUpperCase() || "U"}
                   </div>
                   <span className="text-sm font-medium text-light-100 hidden sm:inline-block">
                     {user.name || user.email?.split("@")[0]}
                   </span>
-                </div>
+                </Link>
                 <LogoutButton />
               </div>
             ) : (

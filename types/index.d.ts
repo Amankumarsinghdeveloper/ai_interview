@@ -36,6 +36,10 @@ interface User {
   name: string;
   email: string;
   id: string;
+  credits: number;
+  referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
 }
 
 interface InterviewCardProps {
@@ -96,4 +100,13 @@ interface InterviewFormProps {
 
 interface TechIconProps {
   techStack: string[];
+}
+
+interface Transaction {
+  id: string;
+  userId: string;
+  amount: number;
+  type: string;
+  timestamp: string;
+  referralCode?: string;
 }

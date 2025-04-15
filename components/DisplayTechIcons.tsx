@@ -16,7 +16,7 @@ const DisplayTechIcons = async ({
   return (
     <div className={`flex gap-1 ${className}`}>
       {displayableTechs.map(({ tech, url }) => (
-        <div key={tech} className="group relative" title={tech}>
+        <div key={tech} className="relative">
           <div className="bg-dark-300 rounded-full p-2 transition-all duration-200 hover:bg-dark-200 shadow-sm border border-light-800/10">
             <Image
               src={url}
@@ -26,9 +26,6 @@ const DisplayTechIcons = async ({
               className="size-5"
             />
           </div>
-          <span className="tech-tooltip absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-            {tech}
-          </span>
         </div>
       ))}
 
