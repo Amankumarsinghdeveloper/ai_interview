@@ -113,7 +113,7 @@ async function Home() {
                   clipRule="evenodd"
                 />
               </svg>
-              Start an Interview
+              Create an Interview
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="20"
