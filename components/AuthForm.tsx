@@ -53,7 +53,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
           ? "Signed in successfully."
           : "Account created and signed in successfully."
       );
-      router.push("/");
+      router.push("/dashboard");
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -70,13 +70,13 @@ const AuthForm = ({ type }: { type: FormType }) => {
       <div className="flex flex-col items-center mb-8">
         <Image
           src="/logo.svg"
-          alt="PrepWise"
+          alt="Prep Pilot"
           width={72}
           height={72}
           className="mb-4"
         />
         <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-primary-100 to-primary-200 text-transparent bg-clip-text">
-          {isSignIn ? "Welcome Back" : "Join PrepWise"}
+          {isSignIn ? "Welcome Back" : "Join Prep Pilot"}
         </h2>
         <p className="text-light-400 text-center mt-3 max-w-xs">
           {isSignIn

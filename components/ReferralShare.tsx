@@ -29,8 +29,8 @@ export function ReferralShare({ referralCode }: ReferralShareProps) {
   };
 
   const shareViaEmail = () => {
-    const subject = "Join me on PrepWise!";
-    const body = `Hello,\n\nI wanted to invite you to PrepWise, a great platform for interview preparation.\n\nUse my referral link to sign up and get bonus credits: ${referralLink}\n\nBest,`;
+    const subject = "Join me on Prep Pilot!";
+    const body = `Hello,\n\nI wanted to invite you to Prep Pilot, a great platform for interview preparation.\n\nUse my referral link to sign up and get bonus credits: ${referralLink}\n\nBest,`;
 
     window.location.href = `mailto:?subject=${encodeURIComponent(
       subject
@@ -41,8 +41,8 @@ export function ReferralShare({ referralCode }: ReferralShareProps) {
     <div className="bg-gradient-to-br from-dark-200 to-dark-300 p-6 rounded-xl border border-light-800/10 space-y-4">
       <h3 className="text-xl font-semibold">Share Your Referral Link</h3>
       <p className="text-light-400 text-sm">
-        Invite friends to join PrepWise. They&apos;ll receive 10 extra credits,
-        and you&apos;ll earn rewards for each referral.
+        Invite friends to join Prep Pilot. They&apos;ll receive 10 extra
+        credits, and you&apos;ll earn rewards for each referral.
       </p>
 
       <div className="flex gap-2">

@@ -22,13 +22,13 @@ export default async function RootLayout({
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/logo.svg"
-              alt="prepwise logo"
+              alt="Prep Pilot logo"
               width={30}
               height={30}
               className="size-8"
             />
             <span className="text-xl font-bold bg-gradient-to-r from-primary-100 to-primary-200 text-transparent bg-clip-text">
-              PrepWise
+              Prep Pilot
             </span>
           </Link>
 
@@ -77,7 +77,7 @@ export default async function RootLayout({
 
       <footer className="border-t border-light-800/10 py-6 text-center text-sm text-light-400">
         <div className="container max-w-7xl mx-auto px-5 sm:px-10">
-          <p>© {new Date().getFullYear()} PrepWise. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Prep Pilot. All rights reserved.</p>
         </div>
       </footer>
     </div>

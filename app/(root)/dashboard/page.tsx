@@ -21,7 +21,6 @@ async function Home() {
       </div>
     );
   }
-
   const [userInterviews, allInterview, userCredits] = await Promise.all([
     getInterviewsByUserId(user.id || ""),
     getLatestInterviews({ userId: user.id || "" }),

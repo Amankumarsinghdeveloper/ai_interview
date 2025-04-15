@@ -40,11 +40,11 @@ export default function TermsOfServicePage() {
                 1. Introduction
               </h2>
               <p className="leading-relaxed">
-                Welcome to PrepWise. These Terms of Service (&quot;Terms&quot;)
-                govern your access to and use of our website, services, and
-                applications (collectively, the &quot;Services&quot;). By
-                accessing or using our Services, you agree to be bound by these
-                Terms.
+                Welcome to Prep Pilot. These Terms of Service
+                (&quot;Terms&quot;) govern your access to and use of our
+                website, services, and applications (collectively, the
+                &quot;Services&quot;). By accessing or using our Services, you
+                agree to be bound by these Terms.
               </p>
             </div>
 
@@ -365,7 +365,7 @@ export default function TermsOfServicePage() {
               <p className="leading-relaxed">
                 The Services and all content and materials included on the
                 Services, including but not limited to text, graphics, logos,
-                images, and software, are the property of PrepWise or our
+                images, and software, are the property of Prep Pilot or our
                 licensors and are protected by copyright, trademark, and other
                 intellectual property laws.
               </p>
@@ -390,12 +390,12 @@ export default function TermsOfServicePage() {
                   9. Limitation of Liability
                 </h2>
                 <p className="leading-relaxed">
-                  In no event will PrepWise, its affiliates, or their licensors,
-                  service providers, employees, agents, officers, or directors
-                  be liable for damages of any kind, including but not limited
-                  to direct, indirect, special, incidental, consequential, or
-                  punitive damages, arising out of or in connection with your
-                  use of our Services.
+                  In no event will Prep Pilot, its affiliates, or their
+                  licensors, service providers, employees, agents, officers, or
+                  directors be liable for damages of any kind, including but not
+                  limited to direct, indirect, special, incidental,
+                  consequential, or punitive damages, arising out of or in
+                  connection with your use of our Services.
                 </p>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function TermsOfServicePage() {
                     d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"
                   />
                 </svg>
-                <span className="font-medium">support@prepwise.com</span>
+                <span className="font-medium">support@prep-pilot.com</span>
               </div>
             </div>
           </div>
