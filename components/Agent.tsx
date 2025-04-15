@@ -38,6 +38,8 @@ const Agent = ({
   const [lastMessage, setLastMessage] = useState<string>("");
   const [isChecking, setIsChecking] = useState(false);
   const [availableCredits, setAvailableCredits] = useState(0);
+  // Add flag to track if feedback has been generated
+  const [feedbackGenerated, setFeedbackGenerated] = useState(false);
 
   // Track interview duration for credit deduction
   const startTimeRef = useRef<number | null>(null);
@@ -196,7 +198,11 @@ const Agent = ({
     }
 
     const handleGenerateFeedback = async (messages: SavedMessage[]) => {
+      // Check if feedback has already been generated
+      if (feedbackGenerated) return;
+
       console.log("handleGenerateFeedback");
+      setFeedbackGenerated(true);
 
       const { success, feedbackId: id } = await createFeedback({
         interviewId: interviewId!,
@@ -206,9 +212,11 @@ const Agent = ({
       });
 
       if (success && id) {
+        toast.success("Interview feedback generated");
         router.push(`/interview/${interviewId}/feedback`);
       } else {
         console.log("Error saving feedback");
+        toast.error("Failed to generate feedback");
         router.push("/");
       }
     };
@@ -261,7 +269,7 @@ const Agent = ({
       }
     };
 
-    if (callStatus === CallStatus.FINISHED) {
+    if (callStatus === CallStatus.FINISHED && !feedbackGenerated) {
       handleSessionEnd();
     }
 
@@ -271,7 +279,16 @@ const Agent = ({
         clearInterval(creditCheckIntervalRef.current);
       }
     };
-  }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
+  }, [
+    messages,
+    callStatus,
+    feedbackId,
+    interviewId,
+    router,
+    type,
+    userId,
+    feedbackGenerated,
+  ]);
 
   // Check for unfinished sessions on component mount (handles page refresh)
   useEffect(() => {
@@ -475,6 +492,12 @@ const Agent = ({
   };
 
   const handleDisconnect = async () => {
+    // Check if feedback has already been generated
+    if (feedbackGenerated) {
+      toast.info("Already processing your feedback...");
+      return;
+    }
+
     // Record end time when manually disconnecting
     endTimeRef.current = Date.now();
 
@@ -526,6 +549,8 @@ const Agent = ({
     // Handle feedback generation directly if needed
     if (type !== "generate" && interviewId && userId && messages.length > 0) {
       console.log("Generating feedback after manual disconnect");
+      setFeedbackGenerated(true);
+
       try {
         const { success, feedbackId: id } = await createFeedback({
           interviewId: interviewId,
@@ -664,6 +689,14 @@ const Agent = ({
           </button>
         )}
       </div>
+
+      {callStatus === "ACTIVE" && type !== "generate" && (
+        <div className="w-full flex justify-center mt-4">
+          <p className="text-center text-xl bg-red-500/10 px-4 py-2 rounded-lg">
+            After Interview End the Interview
+          </p>
+        </div>
+      )}
     </>
   );
 };

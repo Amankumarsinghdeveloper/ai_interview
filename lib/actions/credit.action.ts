@@ -141,18 +141,18 @@ export async function deductCredits(userId: string, amount: number) {
       };
     }
 
-    // Update with new credit amount
-    await db
-      .collection("users")
-      .doc(userId)
-      .update({
-        credits: credits - amount,
-      });
+    // Round to 2 decimal places to ensure precision
+    const newTotal = parseFloat((credits - amount).toFixed(2));
 
-    // Record the transaction
+    // Update with new credit amount
+    await db.collection("users").doc(userId).update({
+      credits: newTotal,
+    });
+
+    // Record the transaction with the exact amount deducted
     await db.collection("creditTransactions").add({
       userId,
-      amount: -amount,
+      amount: -parseFloat(amount.toFixed(2)),
       type: "usage",
       timestamp: new Date(),
     });
@@ -160,7 +160,7 @@ export async function deductCredits(userId: string, amount: number) {
     return {
       success: true,
       message: `${amount} credits deducted successfully`,
-      newTotal: credits - amount,
+      newTotal: newTotal,
     };
   } catch (error) {
     console.error("Error deducting credits:", error);

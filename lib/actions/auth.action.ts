@@ -128,6 +128,9 @@ export async function signUp(params: SignUpParams) {
       }
     }
 
+    // Ensure credits are stored with 2 decimal places
+    credits = parseFloat(credits.toFixed(2));
+
     // save user to db
     await db.collection("users").doc(uid).set({
       name,
@@ -142,7 +145,7 @@ export async function signUp(params: SignUpParams) {
     // Record initial credits as transaction
     await db.collection("creditTransactions").add({
       userId: uid,
-      amount: 15,
+      amount: parseFloat((15).toFixed(2)),
       type: "initial",
       timestamp: new Date(),
     });
@@ -151,7 +154,7 @@ export async function signUp(params: SignUpParams) {
     if (bonusAmount > 0) {
       await db.collection("creditTransactions").add({
         userId: uid,
-        amount: bonusAmount,
+        amount: parseFloat(bonusAmount.toFixed(2)),
         type: "referral_bonus",
         timestamp: new Date(),
         referralCode: referralCode,
