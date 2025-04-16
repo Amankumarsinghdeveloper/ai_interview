@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       // Old format
       paymentStatus = data.data.order.order_status;
     } else if (data?.data?.payment?.payment_status) {
-      // New format
+      // New format - directly use payment status from webhook
       paymentStatus = data.data.payment.payment_status;
     }
 
@@ -167,82 +167,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Extract necessary data based on payload format
-    let order_id: string | undefined;
-    let order_status: string | undefined;
-    let order_amount: number | undefined;
-    let customer_id: string | undefined;
-    let credit_amount: string | undefined;
-
-    // Extract data from old format
-    if (data.data.order && data.data.order.order_id) {
-      // Old format
-      const { order } = data.data;
-      order_id = order.order_id;
-      order_status = order.order_status;
-      order_amount = order.order_amount;
-
-      // Extract customer details and credit amount from old format
-      if (order.customer_details) {
-        customer_id = order.customer_details.customer_id;
-      }
-
-      if (order.order_meta) {
-        credit_amount = order.order_meta.credit_amount;
-      }
-    }
-    // Extract data from new format
-    else if (data.data.order && data.data.payment) {
-      // New format
-      order_id = data.data.order.order_id;
-      order_status =
-        data.data.payment.payment_status === "SUCCESS"
-          ? "PAID"
-          : data.data.payment.payment_status;
-      order_amount = data.data.payment.payment_amount;
-
-      // Extract customer details from new format
-      if (data.data.customer_details) {
-        customer_id = data.data.customer_details.customer_id;
-      }
-
-      // For new format, we need to fetch credit_amount from transactions
-      // We'll handle this later in the payment processing section
-    } else {
-      console.error(
-        "Unrecognized webhook format:",
-        JSON.stringify(data).substring(0, 500) + "..."
-      );
-      return NextResponse.json(
-        { message: "Unrecognized webhook format" },
-        { status: 400 }
-      );
-    }
-
-    if (!order_id) {
-      console.error("Missing order_id in webhook payload");
-      return NextResponse.json(
-        { message: "Missing order_id in webhook payload" },
-        { status: 400 }
-      );
-    }
-
-    // Find the transaction in the database
+    // Find the transaction in the database first to get existing data
     let transactionSnapshot;
     try {
       transactionSnapshot = await db
         .collection("transactions")
-        .where("orderId", "==", order_id)
+        .where("orderId", "==", orderId)
         .get();
 
       console.log(
-        `Transaction lookup for ${order_id}: found=${!transactionSnapshot.empty}`
+        `Transaction lookup for ${orderId}: found=${!transactionSnapshot.empty}`
       );
     } catch (dbError) {
-      console.error(
-        `Error finding transaction for order ${order_id}:`,
-        dbError
-      );
+      console.error(`Error finding transaction for order ${orderId}:`, dbError);
       return NextResponse.json(
         { message: "Database error when looking up transaction" },
         { status: 500 }
@@ -255,8 +192,62 @@ export async function POST(req: NextRequest) {
       : transactionSnapshot.docs[0];
     const transactionData = transactionDoc?.data();
 
-    // Get credit_amount from transaction if not available in webhook
-    if (!credit_amount && transactionData && transactionData.creditAmount) {
+    // Extract necessary data based on payload format and database record
+    const order_id: string = orderId; // Already extracted
+    let order_status: string | undefined;
+    let order_amount: number | undefined;
+    let customer_id: string | undefined;
+    let credit_amount: string | undefined;
+
+    // Determine the order status based on webhook and transaction data
+    if (data?.data?.payment?.payment_status === "SUCCESS") {
+      // New format with success payment
+      order_status = "PAID";
+    } else if (data?.data?.order?.order_status) {
+      // Old format
+      order_status = data.data.order.order_status;
+    } else if (data?.data?.payment?.payment_status) {
+      // New format with other payment status
+      order_status = data.data.payment.payment_status;
+    } else if (transactionData?.status) {
+      // Fallback to existing transaction status
+      order_status = transactionData.status;
+    } else {
+      // Default status if nothing found
+      order_status = "UNKNOWN";
+    }
+
+    // Extract other information from old format
+    if (data.data.order) {
+      // Get data from order object
+      order_amount = data.data.order.order_amount;
+
+      if (data.data.order.customer_details) {
+        customer_id = data.data.order.customer_details.customer_id;
+      }
+
+      if (data.data.order.order_meta) {
+        credit_amount = data.data.order.order_meta.credit_amount;
+      }
+    }
+
+    // Extract data from new format
+    if (data.data.payment) {
+      // Get amount from payment
+      order_amount = data.data.payment.payment_amount;
+    }
+
+    if (data.data.customer_details) {
+      // Get customer ID from customer_details
+      customer_id = data.data.customer_details.customer_id;
+    }
+
+    // Get data from transaction if not available in webhook
+    if (!customer_id && transactionData?.userId) {
+      customer_id = transactionData.userId;
+    }
+
+    if (!credit_amount && transactionData?.creditAmount) {
       credit_amount = String(transactionData.creditAmount);
     }
 
@@ -266,7 +257,7 @@ export async function POST(req: NextRequest) {
         // Create a new transaction record if it doesn't exist
         await db.collection("transactions").add({
           orderId: order_id,
-          status: order_status || "UNKNOWN",
+          status: order_status,
           amount: order_amount,
           webhookData: data,
           createdAt: new Date(),
@@ -286,9 +277,12 @@ export async function POST(req: NextRequest) {
             lastWebhookAt: new Date(),
           };
 
-          // Only include status if it's defined
-          if (order_status) {
+          // Only include status if it's defined and changed
+          if (order_status && order_status !== transactionData?.status) {
             updateData.status = order_status;
+            console.log(
+              `Updating status from ${transactionData?.status} to ${order_status}`
+            );
           }
 
           await transactionDoc.ref.update(updateData);
@@ -310,10 +304,14 @@ export async function POST(req: NextRequest) {
     }
 
     // If payment is successful, check if credits were added
-    if (order_status === "PAID" || order_status === "SUCCESS") {
+    if (
+      order_status === "PAID" ||
+      order_status === "SUCCESS" ||
+      data?.data?.payment?.payment_status === "SUCCESS"
+    ) {
       // Extract user ID and credit amount
       if (!customer_id) {
-        console.error("Missing customer_id in webhook payload");
+        console.error("Missing customer_id in webhook payload and transaction");
         return NextResponse.json(
           { message: "Missing customer_id for credit processing" },
           { status: 400 }
