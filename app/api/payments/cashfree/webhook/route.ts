@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addCredits } from "@/lib/actions/credit.action";
+import { addCredits, deductCredits } from "@/lib/actions/credit.action";
 import { db } from "@/firebase/admin";
 import crypto from "crypto";
 
@@ -183,20 +183,32 @@ export async function POST(req: NextRequest) {
       : transactionSnapshot.docs[0];
     const transactionData = transactionDoc?.data();
 
+    // Check for transaction document existence
+    if (!transactionDoc || !transactionData) {
+      console.log(`No existing transaction found for order ${orderId}`);
+      return NextResponse.json(
+        { message: "Transaction data not available" },
+        { status: 400 }
+      );
+    }
+
     // Extract necessary data from webhook and transaction
     const order_id: string = orderId;
     const order_amount = data.data.payment?.payment_amount;
     const customer_id =
-      data.data.customer_details?.customer_id || transactionData?.userId;
-    let credit_amount = transactionData?.creditAmount
+      data.data.customer_details?.customer_id || transactionData.userId;
+    const credit_amount = transactionData.creditAmount
       ? String(transactionData.creditAmount)
       : undefined;
 
     // Map payment status to our internal status
     let order_status: string;
     if (data.data.payment?.payment_status === "SUCCESS") {
-      // Only set as PAID initially, will be updated to COMPLETED after adding credits
       order_status = "PAID";
+    } else if (data.data.payment?.payment_status === "FAILED") {
+      order_status = "FAILED";
+    } else if (data.data.payment?.payment_status === "REFUNDED") {
+      order_status = "REFUNDED";
     } else if (data.data.payment?.payment_status) {
       order_status = data.data.payment.payment_status;
     } else {
@@ -205,39 +217,23 @@ export async function POST(req: NextRequest) {
 
     // Transaction record handling
     try {
-      if (transactionSnapshot.empty) {
-        // Don't create new transactions from webhooks, only update existing ones
+      // Update existing transaction with webhook data
+      const updateData: Record<string, unknown> = {
+        webhookData: data,
+        updatedAt: new Date(),
+        lastWebhookAt: new Date(),
+      };
+
+      // Only include status if it's changed
+      if (order_status && order_status !== transactionData.status) {
+        updateData.status = order_status;
         console.log(
-          `No existing transaction found for order ${order_id}, ignoring webhook`
+          `Updating status from ${transactionData.status} to ${order_status}`
         );
-        return NextResponse.json(
-          { message: `No existing transaction found for order ${order_id}` },
-          { status: 400 }
-        );
-      } else {
-        // Update existing transaction
-        if (transactionDoc) {
-          const updateData: Record<string, unknown> = {
-            webhookData: data,
-            updatedAt: new Date(),
-            lastWebhookAt: new Date(),
-          };
-
-          // Only include status if it's changed
-          if (order_status && order_status !== transactionData?.status) {
-            updateData.status = order_status;
-            console.log(
-              `Updating status from ${transactionData?.status} to ${order_status}`
-            );
-          }
-
-          await transactionDoc.ref.update(updateData);
-
-          console.log(`Transaction updated from webhook for order ${order_id}`);
-        } else {
-          console.error(`Transaction document is null for order ${order_id}`);
-        }
       }
+
+      await transactionDoc.ref.update(updateData);
+      console.log(`Transaction updated from webhook for order ${order_id}`);
     } catch (updateError) {
       console.error(
         `Error updating transaction for order ${order_id}:`,
@@ -249,69 +245,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If payment is successful, add credits
-    if (data.data.payment?.payment_status === "SUCCESS") {
-      // Only proceed if the previous status was PENDING_PAYMENT
-      if (transactionData?.status !== "PENDING_PAYMENT") {
-        console.log(
-          `Transaction status is not PENDING_PAYMENT (current: ${transactionData?.status}), not adding credits`
-        );
-        return NextResponse.json(
-          {
-            message:
-              "Webhook received but no credits added as transaction was not in PENDING_PAYMENT state",
-            currentStatus: transactionData?.status,
-          },
-          { status: 200 }
-        );
-      }
-
-      // Extract user ID and credit amount
-      if (!customer_id) {
-        console.error("Missing customer_id in webhook and transaction");
-        return NextResponse.json(
-          { message: "Missing customer_id for credit processing" },
-          { status: 400 }
-        );
-      }
-
-      // Mark this transaction as being processed to prevent concurrent processing
-      try {
-        if (transactionDoc) {
-          await transactionDoc.ref.update({
-            processingCredits: true,
-            processingStartedAt: new Date(),
-            status: "PROCESSING_PAYMENT", // Transitional status
-          });
-          console.log(`Marked order ${order_id} as processing`);
-        }
-      } catch (lockError) {
-        console.error(
-          `Error setting processing lock for order ${order_id}:`,
-          lockError
-        );
-        // Continue processing but log the error
-      }
-
-      // If credit amount is not available, use payment amount as fallback
-      if (!credit_amount) {
-        if (order_amount) {
-          // Basic fallback: 1 unit of currency = 1 credit
-          credit_amount = String(Math.round(order_amount));
-          console.log(
-            `Using payment amount as fallback for credits: ${credit_amount}`
-          );
-        } else {
-          console.error("No credit amount or payment amount available");
-          return NextResponse.json(
-            { message: "Cannot determine credit amount" },
-            { status: 400 }
-          );
-        }
-      }
-
-      // Ensure credit_amount is a valid number
-      let creditAmount: number;
+    // Get credit amount
+    let creditAmount: number = 0;
+    if (credit_amount) {
       try {
         creditAmount = parseInt(credit_amount);
         if (isNaN(creditAmount) || creditAmount <= 0) {
@@ -327,6 +263,51 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+    } else if (order_amount) {
+      // Fallback: 1 unit of currency = 1 credit
+      creditAmount = Math.round(order_amount);
+      console.log(
+        `Using payment amount as fallback for credits: ${creditAmount}`
+      );
+    } else {
+      console.error("No credit amount or payment amount available");
+      return NextResponse.json(
+        { message: "Cannot determine credit amount" },
+        { status: 400 }
+      );
+    }
+
+    // Handle different payment statuses
+    if (data.data.payment?.payment_status === "SUCCESS") {
+      // Only add credits if transaction is in PENDING_PAYMENT state
+      if (transactionData.status !== "PENDING_PAYMENT") {
+        console.log(
+          `Transaction already processed (status: ${transactionData.status}), not adding credits again`
+        );
+        return NextResponse.json(
+          {
+            message: "Webhook received but transaction already processed",
+            currentStatus: transactionData.status,
+          },
+          { status: 200 }
+        );
+      }
+
+      // Mark this transaction as being processed to prevent concurrent processing
+      try {
+        await transactionDoc.ref.update({
+          processingCredits: true,
+          processingStartedAt: new Date(),
+          status: "PROCESSING_PAYMENT", // Transitional status
+        });
+        console.log(`Marked order ${order_id} as processing`);
+      } catch (lockError) {
+        console.error(
+          `Error setting processing lock for order ${order_id}:`,
+          lockError
+        );
+        // Continue processing but log the error
+      }
 
       // Add credits to the user's account
       console.log(
@@ -341,21 +322,13 @@ export async function POST(req: NextRequest) {
           );
 
           // Update transaction with credit addition failure
-          await db
-            .collection("transactions")
-            .where("orderId", "==", order_id)
-            .get()
-            .then((snapshot) => {
-              if (!snapshot.empty) {
-                snapshot.docs[0].ref.update({
-                  status: "PAYMENT_COMPLETED_CREDIT_FAILED",
-                  errorMessage: addCreditsResult.message,
-                  processingCredits: false, // Clear processing flag on failure
-                  processingError: addCreditsResult.message,
-                  updatedAt: new Date(),
-                });
-              }
-            });
+          await transactionDoc.ref.update({
+            status: "PAYMENT_COMPLETED_CREDIT_FAILED",
+            errorMessage: addCreditsResult.message,
+            processingCredits: false, // Clear processing flag on failure
+            processingError: addCreditsResult.message,
+            updatedAt: new Date(),
+          });
 
           return NextResponse.json(
             {
@@ -365,6 +338,25 @@ export async function POST(req: NextRequest) {
             { status: 500 }
           );
         }
+
+        // Update transaction to completed status
+        await transactionDoc.ref.update({
+          status: "COMPLETED",
+          creditsAdded: creditAmount,
+          creditsAddedAt: new Date(),
+          updatedAt: new Date(),
+          processingCredits: false, // Clear processing flag
+          processingCompletedAt: new Date(),
+        });
+
+        console.log(
+          `Successfully added ${creditAmount} credits to user ${customer_id} for order ${order_id}`
+        );
+
+        return NextResponse.json(
+          { message: "Credits added successfully" },
+          { status: 200 }
+        );
       } catch (creditsError) {
         console.error(
           `Error in addCredits function for order ${order_id}:`,
@@ -373,17 +365,15 @@ export async function POST(req: NextRequest) {
 
         // Clear processing flag on exception
         try {
-          if (transactionDoc) {
-            await transactionDoc.ref.update({
-              processingCredits: false,
-              processingError:
-                creditsError instanceof Error
-                  ? creditsError.message
-                  : String(creditsError),
-              status: "PAYMENT_COMPLETED_CREDIT_ERROR", // Consistent error status
-              updatedAt: new Date(),
-            });
-          }
+          await transactionDoc.ref.update({
+            processingCredits: false,
+            processingError:
+              creditsError instanceof Error
+                ? creditsError.message
+                : String(creditsError),
+            status: "PAYMENT_COMPLETED_CREDIT_ERROR", // Consistent error status
+            updatedAt: new Date(),
+          });
         } catch (clearError) {
           console.error(
             `Failed to clear processing flag for order ${order_id}:`,
@@ -402,66 +392,150 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-
-      // Update transaction to completed status
-      try {
-        await db
-          .collection("transactions")
-          .where("orderId", "==", order_id)
-          .get()
-          .then((snapshot) => {
-            if (!snapshot.empty) {
-              snapshot.docs[0].ref.update({
-                status: "COMPLETED",
-                creditsAdded: creditAmount,
-                creditsAddedAt: new Date(),
-                updatedAt: new Date(),
-                processingCredits: false, // Clear processing flag
-                processingCompletedAt: new Date(),
-              });
-            }
-          });
-
+    } else if (
+      ["FAILED", "REFUNDED", "CANCELLED"].includes(
+        data.data.payment?.payment_status || ""
+      )
+    ) {
+      // Only deduct credits if they were already added (transaction is COMPLETED)
+      if (
+        transactionData.status === "COMPLETED" &&
+        transactionData.creditsAdded
+      ) {
         console.log(
-          `Successfully added ${creditAmount} credits to user ${customer_id} for order ${order_id}`
-        );
-      } catch (updateError) {
-        console.error(
-          `Error updating transaction to COMPLETED for order ${order_id}:`,
-          updateError
+          `Payment status changed to ${data.data.payment?.payment_status} for completed order ${order_id}, reverting credits`
         );
 
-        // Try to clear the processing flag even if the update failed
+        // Mark transaction as processing refund
         try {
-          if (transactionDoc) {
-            await transactionDoc.ref.update({
-              processingCredits: false,
-              processingError: String(updateError),
-              status: "PAYMENT_COMPLETED_CREDIT_FAILED", // Important: Don't leave in PROCESSING_PAYMENT state
-            });
-          }
-        } catch (clearError) {
+          await transactionDoc.ref.update({
+            processingRefund: true,
+            processingRefundStartedAt: new Date(),
+            status: "PROCESSING_REFUND", // Transitional status
+          });
+        } catch (lockError) {
           console.error(
-            `Failed to clear processing flag for order ${order_id}:`,
-            clearError
+            `Error setting refund processing flag for order ${order_id}:`,
+            lockError
           );
         }
 
-        // Still return success since credits were added
-      }
+        // Get amount of credits to deduct (from transaction record)
+        const creditsToDeduct = transactionData.creditsAdded || creditAmount;
 
-      return NextResponse.json(
-        { message: "Credits added successfully" },
-        { status: 200 }
-      );
+        // Deduct credits
+        try {
+          const deductResult = await deductCredits(
+            customer_id,
+            creditsToDeduct
+          );
+
+          if (!deductResult.success) {
+            console.error(
+              `Failed to deduct credits for refunded order ${order_id}: ${deductResult.message}`
+            );
+
+            // Update transaction with deduction failure
+            await transactionDoc.ref.update({
+              status: "REFUND_CREDIT_DEDUCTION_FAILED",
+              refundErrorMessage: deductResult.message,
+              processingRefund: false,
+              updatedAt: new Date(),
+            });
+
+            return NextResponse.json(
+              {
+                message: "Failed to process refund credits",
+                error: deductResult.message,
+              },
+              { status: 500 }
+            );
+          }
+
+          // Update transaction status
+          await transactionDoc.ref.update({
+            status: `${data.data.payment?.payment_status}_PROCESSED`,
+            creditsDeducted: creditsToDeduct,
+            creditsDeductedAt: new Date(),
+            processingRefund: false,
+            processingRefundCompletedAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          console.log(
+            `Successfully deducted ${creditsToDeduct} credits from user ${customer_id} for refunded order ${order_id}`
+          );
+
+          return NextResponse.json(
+            {
+              message: `Credits deducted successfully for ${data.data.payment?.payment_status} payment`,
+              deductedAmount: creditsToDeduct,
+            },
+            { status: 200 }
+          );
+        } catch (deductError) {
+          console.error(
+            `Error in deductCredits function for order ${order_id}:`,
+            deductError
+          );
+
+          // Clear processing flag on exception
+          try {
+            await transactionDoc.ref.update({
+              processingRefund: false,
+              processingRefundError:
+                deductError instanceof Error
+                  ? deductError.message
+                  : String(deductError),
+              status: "REFUND_CREDIT_ERROR",
+              updatedAt: new Date(),
+            });
+          } catch (clearError) {
+            console.error(
+              `Failed to clear refund processing flag for order ${order_id}:`,
+              clearError
+            );
+          }
+
+          return NextResponse.json(
+            {
+              message: "Error deducting credits for refund/cancellation",
+              error:
+                deductError instanceof Error
+                  ? deductError.message
+                  : "Unknown error",
+            },
+            { status: 500 }
+          );
+        }
+      } else {
+        // Transaction wasn't COMPLETED, so no credits were added
+        console.log(
+          `Order ${order_id} status changed to ${data.data.payment?.payment_status}, but no credits were previously added (status: ${transactionData.status})`
+        );
+
+        // Update status to reflect the payment failure
+        await transactionDoc.ref.update({
+          status: data.data.payment?.payment_status || "FAILED",
+          updatedAt: new Date(),
+        });
+
+        return NextResponse.json(
+          {
+            message: `Payment ${data.data.payment?.payment_status}, no credits were previously added`,
+            currentStatus: transactionData.status,
+          },
+          { status: 200 }
+        );
+      }
     }
 
-    // For non-success statuses, just acknowledge receipt
+    // For other statuses, just acknowledge receipt
     return NextResponse.json(
       {
         message: `Webhook received, order status: ${order_status}`,
         orderId: order_id,
-        currentStatus: transactionData?.status,
+        currentStatus: transactionData.status,
         newStatus: order_status,
       },
       { status: 200 }
