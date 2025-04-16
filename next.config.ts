@@ -5,9 +5,7 @@ const nextConfig: NextConfig = {
     domains: [],
     remotePatterns: [],
   },
-  experimental: {
-    serverComponentsExternalPackages: ["shiki"],
-  },
+  serverExternalPackages: ["shiki"],
   // Ensure public files are accessible without restrictions
   async rewrites() {
     return [
