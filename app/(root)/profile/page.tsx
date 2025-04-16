@@ -8,7 +8,7 @@ import {
 } from "@/lib/actions/credit.action";
 import CreditStatus from "@/components/CreditStatus";
 import TransactionHistory from "@/components/TransactionHistory";
-// import BuyCreditsForm from "@/components/BuyCreditsForm";
+import BuyCreditsForm from "@/components/BuyCreditsForm";
 // import { ReferralShare } from "@/components/ReferralShare";
 
 const ProfilePage = async () => {
@@ -140,17 +140,7 @@ const ProfilePage = async () => {
             </div>
           </div>
 
-          {/* <BuyCreditsForm userId={user.id} creditPrice={creditPrice} /> */}
-
-          <div className="bg-yellow-500/10 border border-yellow-600/30 rounded-lg p-4 text-center">
-            <h3 className="text-yellow-300 font-medium text-lg mb-2">
-              Payment System Temporarily Unavailable
-            </h3>
-            <p className="text-gray-300">
-              Our payment gateway is currently under maintenance. Please check
-              back later to purchase credits.
-            </p>
-          </div>
+          <BuyCreditsForm userId={user.id} creditPrice={creditPrice} />
         </div>
       </div>
 

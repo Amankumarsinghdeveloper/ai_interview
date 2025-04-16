@@ -1,21 +1,56 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { addCredits } from "@/lib/actions/credit.action";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface BuyCreditsFormProps {
-  userId: string;
+  userId: string; // Kept for future reference but not used directly
   creditPrice: number;
 }
 
-const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
+const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [amount, setAmount] = useState<number>(10);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showMessage, setShowMessage] = useState<boolean>(false);
+  const [messageType, setMessageType] = useState<"success" | "error" | null>(
+    null
+  );
+  const [messageText, setMessageText] = useState<string>("");
 
   const predefinedAmounts = [5, 10, 20, 50, 100];
+
+  // Check URL parameters for payment status
+  useEffect(() => {
+    const paymentStatus = searchParams.get("paymentStatus");
+    const credits = searchParams.get("credits");
+    const error = searchParams.get("error");
+
+    if (paymentStatus === "success" && credits) {
+      setMessageType("success");
+      setMessageText(`Successfully purchased ${credits} credits!`);
+      setShowMessage(true);
+
+      // Clear URL parameters after 5 seconds
+      setTimeout(() => {
+        router.replace("/profile#credits");
+      }, 5000);
+    } else if (paymentStatus === "failed") {
+      setMessageType("error");
+      setMessageText(`Payment failed: ${error || "Unknown error"}`);
+      setShowMessage(true);
+
+      // Clear URL parameters after 5 seconds
+      setTimeout(() => {
+        router.replace("/profile#credits");
+      }, 5000);
+    }
+  }, [searchParams, router]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
@@ -39,23 +74,34 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
     setIsLoading(true);
 
     try {
-      // Simulate payment process (in a real app, integrate with payment gateway)
-      // For demo purposes, we'll just wait 1 second
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Calculate total cost
+      const totalCost = parseFloat((amount * creditPrice).toFixed(2));
 
-      // Add credits to the user's account
-      const result = await addCredits(userId, amount);
+      // Create order with Cashfree
+      const response = await fetch("/api/payments/cashfree/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: totalCost,
+          creditAmount: amount,
+        }),
+      });
 
-      if (result.success) {
-        toast.success(`Successfully purchased ${amount} credits!`);
-        router.refresh();
-      } else {
-        toast.error(result.message || "Failed to purchase credits");
+      const result = await response.json();
+
+      if (!result.success) {
+        toast.error(result.message || "Failed to create payment order");
+        setIsLoading(false);
+        return;
       }
+
+      // Redirect to Cashfree payment page
+      window.location.href = result.data.paymentLink;
     } catch (error) {
       toast.error("An error occurred while processing your payment");
       console.error(error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -63,43 +109,55 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
   const totalCost = (amount * creditPrice).toFixed(2);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {showMessage && messageType && (
+        <div
+          className={`p-4 rounded-lg mb-4 ${
+            messageType === "success"
+              ? "bg-green-500/20 border border-green-500/30 text-green-300"
+              : "bg-red-500/20 border border-red-500/30 text-red-300"
+          }`}
+        >
+          <p>{messageText}</p>
+        </div>
+      )}
+
       <div>
-        <label htmlFor="creditAmount" className="block mb-2 font-medium">
+        <label
+          htmlFor="creditAmount"
+          className="block mb-3 font-medium text-light-100"
+        >
           Select Credit Amount
         </label>
 
         <div className="flex flex-wrap gap-2 mb-4">
           {predefinedAmounts.map((value) => (
-            <button
+            <Button
               key={value}
               type="button"
               onClick={() => handlePredefinedAmount(value)}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                amount === value
-                  ? "bg-primary-500 text-white"
-                  : "bg-dark-300 text-gray-300 hover:bg-dark-400"
-              }`}
+              variant={amount === value ? "default" : "outline"}
+              size="sm"
             >
               {value} credits
-            </button>
+            </Button>
           ))}
         </div>
 
         <div className="flex items-center gap-4">
-          <input
+          <Input
             type="number"
             id="creditAmount"
             value={amount}
             onChange={handleAmountChange}
             min="1"
-            className="flex h-10 w-full rounded-md border border-gray-600 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-12"
           />
           <span className="text-gray-400">credits</span>
         </div>
       </div>
 
-      <div className="bg-dark-300 p-4 rounded-md">
+      <div className="bg-dark-300 p-5 rounded-xl">
         <div className="flex justify-between">
           <span>Unit Price:</span>
           <span>$ {creditPrice} per credit</span>
@@ -110,20 +168,34 @@ const BuyCreditsForm = ({ userId, creditPrice }: BuyCreditsFormProps) => {
         </div>
       </div>
 
-      <button
+      <Button
         type="submit"
         disabled={isLoading || amount < 1}
-        className="w-full bg-primary-500 text-white font-medium py-2 px-4 rounded-md hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full h-12"
+        variant="default"
+        size="lg"
       >
         {isLoading
           ? "Processing..."
           : `Buy ${amount} Credits for $ ${totalCost}`}
-      </button>
+      </Button>
 
-      <p className="text-xs text-gray-500 mt-2">
-        This is a simulated payment for demonstration purposes. In a production
-        environment, this would connect to a payment gateway.
-      </p>
+      <div className="flex items-center justify-center gap-2 mt-4">
+        <div className="relative h-5 w-24">
+          <Image
+            src="/images/cashfree-logo.svg"
+            alt="Cashfree Payments"
+            fill
+            className="object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
+        <span className="text-xs text-gray-500">
+          Secured by Cashfree Payments
+        </span>
+      </div>
     </form>
   );
 };

@@ -1,0 +1,189 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { auth, db } from "@/firebase/admin";
+import { addCredits } from "@/lib/actions/credit.action";
+
+// Initialize Cashfree configuration
+const appId = process.env.CASHFREE_APP_ID || "";
+const secretKey = process.env.CASHFREE_SECRET_KEY || "";
+
+export async function GET(req: NextRequest) {
+  const searchParams = req.nextUrl.searchParams;
+  const orderId = searchParams.get("orderId");
+  const creditAmount = searchParams.get("creditAmount");
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+  // Redirect to profile page if parameters are missing
+  if (!orderId || !creditAmount) {
+    return NextResponse.redirect(
+      `${baseUrl}/profile?paymentStatus=failed&error=invalid_parameters`
+    );
+  }
+
+  try {
+    // Get auth token from cookie
+    const cookiesList = await cookies();
+    // Check both possible cookie names
+    const sessionCookie =
+      cookiesList.get("session")?.value || cookiesList.get("__session")?.value;
+
+    if (!sessionCookie) {
+      console.log("Session cookie not found");
+      return NextResponse.redirect(
+        `${baseUrl}/profile?paymentStatus=failed&error=unauthorized`
+      );
+    }
+
+    try {
+      // Verify session
+      const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+
+      if (!decodedClaims || !decodedClaims.uid) {
+        console.log("Invalid session or missing user ID");
+        return NextResponse.redirect(
+          `${baseUrl}/profile?paymentStatus=failed&error=unauthorized`
+        );
+      }
+
+      try {
+        // Update transaction status to 'PROCESSING'
+        await db
+          .collection("transactions")
+          .where("orderId", "==", orderId)
+          .get()
+          .then((snapshot) => {
+            if (!snapshot.empty) {
+              snapshot.docs[0].ref.update({
+                status: "PROCESSING_VERIFICATION",
+                updatedAt: new Date(),
+              });
+            }
+          });
+
+        // Get order details from Cashfree
+        const response = await fetch(
+          `https://sandbox.cashfree.com/pg/orders/${orderId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "x-client-id": appId,
+              "x-client-secret": secretKey,
+              "x-api-version": "2022-01-01",
+            },
+          }
+        );
+
+        const result = await response.json();
+        console.log("Cashfree order status:", result);
+
+        if (!response.ok) {
+          // Update transaction status to 'VERIFICATION_FAILED'
+          await db
+            .collection("transactions")
+            .where("orderId", "==", orderId)
+            .get()
+            .then((snapshot) => {
+              if (!snapshot.empty) {
+                snapshot.docs[0].ref.update({
+                  status: "VERIFICATION_FAILED",
+                  errorMessage: "Failed to verify order with Cashfree",
+                  updatedAt: new Date(),
+                });
+              }
+            });
+
+          console.error("Cashfree API error:", result);
+          return NextResponse.redirect(
+            `${baseUrl}/profile?paymentStatus=failed&error=order_not_found`
+          );
+        }
+
+        // Update transaction with payment details
+        await db
+          .collection("transactions")
+          .where("orderId", "==", orderId)
+          .get()
+          .then((snapshot) => {
+            if (!snapshot.empty) {
+              snapshot.docs[0].ref.update({
+                status: result.order_status,
+                paymentDetails: result,
+                updatedAt: new Date(),
+              });
+            }
+          });
+
+        // Check payment status
+        if (result.order_status !== "PAID") {
+          return NextResponse.redirect(
+            `${baseUrl}/profile?paymentStatus=failed&error=payment_not_completed`
+          );
+        }
+
+        // Add credits to the user's account
+        const credits = parseInt(creditAmount);
+        const userId = decodedClaims.uid;
+
+        const addCreditsResult = await addCredits(userId, credits);
+
+        if (!addCreditsResult.success) {
+          // Update transaction to reflect credit addition failure
+          await db
+            .collection("transactions")
+            .where("orderId", "==", orderId)
+            .get()
+            .then((snapshot) => {
+              if (!snapshot.empty) {
+                snapshot.docs[0].ref.update({
+                  status: "PAYMENT_COMPLETED_CREDIT_FAILED",
+                  errorMessage: "Failed to add credits to user account",
+                  updatedAt: new Date(),
+                });
+              }
+            });
+
+          return NextResponse.redirect(
+            `${baseUrl}/profile?paymentStatus=failed&error=credit_addition_failed`
+          );
+        }
+
+        // Update transaction to completed status
+        await db
+          .collection("transactions")
+          .where("orderId", "==", orderId)
+          .get()
+          .then((snapshot) => {
+            if (!snapshot.empty) {
+              snapshot.docs[0].ref.update({
+                status: "COMPLETED",
+                creditsAdded: credits,
+                creditsAddedAt: new Date(),
+                updatedAt: new Date(),
+              });
+            }
+          });
+
+        // Redirect to success page
+        return NextResponse.redirect(
+          `${baseUrl}/profile?paymentStatus=success&credits=${credits}`
+        );
+      } catch (error) {
+        console.error("Cashfree API error:", error);
+        return NextResponse.redirect(
+          `${baseUrl}/profile?paymentStatus=failed&error=payment_gateway_error`
+        );
+      }
+    } catch (error) {
+      console.error("Error verifying session:", error);
+      return NextResponse.redirect(
+        `${baseUrl}/profile?paymentStatus=failed&error=session_verification_failed`
+      );
+    }
+  } catch (error) {
+    console.error("Error verifying payment:", error);
+    return NextResponse.redirect(
+      `${baseUrl}/profile?paymentStatus=failed&error=server_error`
+    );
+  }
+}
