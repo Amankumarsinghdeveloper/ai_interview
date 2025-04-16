@@ -9,6 +9,7 @@ import {
 import CreditStatus from "@/components/CreditStatus";
 import TransactionHistory from "@/components/TransactionHistory";
 import BuyCreditsForm from "@/components/BuyCreditsForm";
+import Offer from "@/components/offer";
 // import { ReferralShare } from "@/components/ReferralShare";
 
 const ProfilePage = async () => {
@@ -25,6 +26,8 @@ const ProfilePage = async () => {
 
   return (
     <div className="container mx-auto py-10 px-4 flex flex-col gap-8 max-w-6xl">
+      <Offer />
+
       <header className="flex items-center justify-between flex-wrap gap-4 pb-6 border-b border-gray-800">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
           Your Profile
@@ -129,14 +132,56 @@ const ProfilePage = async () => {
           </div>
         </div>
         <div className="p-6">
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <p className="text-gray-300">
-              Each credit equals 1 minute of interview time.
-            </p>
-            <div className="flex items-center bg-purple-900/30 px-4 py-2 rounded-full">
-              <span className="text-gray-300 text-sm mr-2">Price:</span>
-              <span className="text-green-400 font-bold">$ {creditPrice}</span>
-              <span className="text-gray-400 ml-1 text-xs">/credit</span>
+          <div className="flex flex-col md:flex-row items-start justify-between mb-8 gap-4">
+            <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-4 rounded-xl border border-purple-500/30 shadow-lg flex-1 w-full">
+              <p className="text-gray-300 mb-3 flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-purple-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span>Each credit equals 1 minute of interview time</span>
+              </p>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-sm">Regular price:</span>
+                  <span className="text-gray-400 line-through">
+                    $
+                    {(Number(creditPrice) + Number(creditPrice) * 0.3).toFixed(
+                      2
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <div className="bg-green-500/20 px-3 py-1 rounded-l-lg border-l-4 border-green-500">
+                    <span className="text-green-400 font-bold text-lg">
+                      30% OFF
+                    </span>
+                  </div>
+                  <div className="bg-purple-900/40 px-3 py-1 rounded-r-lg">
+                    <span className="text-white font-bold text-xl">
+                      ${creditPrice}
+                    </span>
+                    <span className="text-gray-400 ml-1 text-xs">/credit</span>
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-purple-300">
+                  <p>
+                    Use code{" "}
+                    <span className="font-mono font-bold bg-white/10 px-2 py-0.5 rounded">
+                      LAUNCHOFF
+                    </span>{" "}
+                    for additional 30% OFF
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

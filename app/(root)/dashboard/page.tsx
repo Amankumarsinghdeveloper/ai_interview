@@ -9,7 +9,7 @@ import {
   getLatestInterviews,
 } from "@/lib/actions/general.action";
 import { getUserCredits } from "@/lib/actions/credit.action";
-
+import Offer from "@/components/offer";
 async function Home() {
   const user = await getCurrentUser();
 
@@ -32,6 +32,7 @@ async function Home() {
 
   return (
     <>
+      <Offer />
       {/* Hero Section */}
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl border border-gray-800/50 p-8 sm:p-10 mb-16 transition-all duration-300 hover:shadow-blue-900/10">
         <div className="absolute top-0 right-0 w-full h-full opacity-10">
