@@ -198,6 +198,8 @@ export async function POST(req: NextRequest) {
     // Update transaction with webhook data
     try {
       // Only include status if it's changed
+
+      console.log(transactionData);
       if (
         order_status &&
         order_status !== transactionData.paymentDetails.order_status
