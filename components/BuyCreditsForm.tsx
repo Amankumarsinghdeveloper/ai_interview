@@ -18,9 +18,9 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
   const [amount, setAmount] = useState<number>(10);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showMessage, setShowMessage] = useState<boolean>(false);
-  const [messageType, setMessageType] = useState<"success" | "error" | null>(
-    null
-  );
+  const [messageType, setMessageType] = useState<
+    "success" | "error" | "pending" | null
+  >(null);
   const [messageText, setMessageText] = useState<string>("");
 
   const predefinedAmounts = [5, 10, 20, 50, 100];
@@ -29,11 +29,23 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
   useEffect(() => {
     const paymentStatus = searchParams.get("paymentStatus");
     const credits = searchParams.get("credits");
+    const orderId = searchParams.get("orderId");
     const error = searchParams.get("error");
 
     if (paymentStatus === "success" && credits) {
       setMessageType("success");
       setMessageText(`Successfully purchased ${credits} credits!`);
+      setShowMessage(true);
+
+      // Clear URL parameters after 5 seconds
+      setTimeout(() => {
+        router.replace("/profile#credits");
+      }, 5000);
+    } else if (paymentStatus === "pending" && orderId) {
+      setMessageType("pending");
+      setMessageText(
+        `Payment successful! Your credits will be added shortly. Order ID: ${orderId}`
+      );
       setShowMessage(true);
 
       // Clear URL parameters after 5 seconds
@@ -141,6 +153,8 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
           className={`p-4 rounded-lg mb-4 ${
             messageType === "success"
               ? "bg-green-500/20 border border-green-500/30 text-green-300"
+              : messageType === "pending"
+              ? "bg-blue-500/20 border border-blue-500/30 text-blue-300"
               : "bg-red-500/20 border border-red-500/30 text-red-300"
           }`}
         >

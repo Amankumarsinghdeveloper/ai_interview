@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { auth, db } from "@/firebase/admin";
-import { addCredits } from "@/lib/actions/credit.action";
 
 // Initialize Cashfree configuration
 const appId = process.env.CASHFREE_APP_ID || "";
@@ -125,34 +124,7 @@ export async function GET(req: NextRequest) {
           );
         }
 
-        // Add credits to the user's account
-        const credits = parseInt(creditAmount);
-        const userId = decodedClaims.uid;
-
-        const addCreditsResult = await addCredits(userId, credits);
-
-        if (!addCreditsResult.success) {
-          // Update transaction to reflect credit addition failure
-          await db
-            .collection("transactions")
-            .where("orderId", "==", orderId)
-            .get()
-            .then((snapshot) => {
-              if (!snapshot.empty) {
-                snapshot.docs[0].ref.update({
-                  status: "PAYMENT_COMPLETED_CREDIT_FAILED",
-                  errorMessage: "Failed to add credits to user account",
-                  updatedAt: new Date(),
-                });
-              }
-            });
-
-          return NextResponse.redirect(
-            `${baseUrl}/profile?paymentStatus=failed&error=credit_addition_failed`
-          );
-        }
-
-        // Update transaction to completed status
+        // Instead, update transaction to pending webhook status
         await db
           .collection("transactions")
           .where("orderId", "==", orderId)
@@ -160,17 +132,15 @@ export async function GET(req: NextRequest) {
           .then((snapshot) => {
             if (!snapshot.empty) {
               snapshot.docs[0].ref.update({
-                status: "COMPLETED",
-                creditsAdded: credits,
-                creditsAddedAt: new Date(),
+                status: "PAYMENT_COMPLETED_WAITING_WEBHOOK",
                 updatedAt: new Date(),
               });
             }
           });
 
-        // Redirect to success page
+        // Redirect to success page with pending status
         return NextResponse.redirect(
-          `${baseUrl}/profile?paymentStatus=success&credits=${credits}`
+          `${baseUrl}/profile?paymentStatus=pending&orderId=${orderId}`
         );
       } catch (error) {
         console.error("Cashfree API error:", error);
