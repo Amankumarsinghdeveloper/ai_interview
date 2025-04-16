@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { SearchInput } from "@/components/ui/search-input";
 import { Pagination } from "@/components/ui/pagination";
+import { AdminNav } from "@/components/admin-nav";
 
 interface ReferralUser {
   id: string;
@@ -308,20 +309,7 @@ export default function AdminReferralsPage() {
         Referral Management
       </h1>
 
-      <div className="flex space-x-4 mb-6">
-        <button
-          onClick={() => router.push("/admin/users")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          User Management
-        </button>
-        <button
-          onClick={() => router.push("/admin/transactions")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          Transaction History
-        </button>
-      </div>
+      <AdminNav />
 
       {/* Generate Referral Code Section */}
       <div className="bg-gray-900 shadow-lg rounded-lg overflow-hidden mb-8 p-6 border border-gray-800">

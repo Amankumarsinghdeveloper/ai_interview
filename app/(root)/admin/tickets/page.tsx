@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { Pagination } from "@/components/ui/pagination";
+import { AdminNav } from "@/components/admin-nav";
 
 interface Ticket {
   id: string;
@@ -352,6 +353,8 @@ export default function AdminTicketsPage() {
           Support Tickets
         </h1>
       </header>
+
+      <AdminNav />
 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3 space-y-6">

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { Pagination } from "@/components/ui/pagination";
+import { AdminNav } from "@/components/admin-nav";
 
 interface User {
   id: string;
@@ -216,20 +217,7 @@ export default function AdminUsersPage() {
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-6 text-white">User Management</h1>
 
-      <div className="flex space-x-4 mb-6">
-        <button
-          onClick={() => router.push("/admin/referrals")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          Referral Management
-        </button>
-        <button
-          onClick={() => router.push("/admin/transactions")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          Transaction History
-        </button>
-      </div>
+      <AdminNav />
 
       {/* Search Bar */}
       <div className="mb-6">
@@ -352,7 +340,6 @@ export default function AdminUsersPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          className="mt-6"
         />
       )}
 

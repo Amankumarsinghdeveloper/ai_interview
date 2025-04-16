@@ -38,16 +38,10 @@ export default async function RootLayout({
                 {user.email === "amankumarsing956@gmail.com" && (
                   <div className="flex items-center gap-3 mr-2">
                     <Link
-                      href="/admin/users"
-                      className="text-sm font-medium text-yellow-400 hover:text-yellow-300 transition-colors"
-                    >
-                      Admin: Users
-                    </Link>
-                    <Link
                       href="/admin/referrals"
                       className="text-sm font-medium text-yellow-400 hover:text-yellow-300 transition-colors"
                     >
-                      Admin: Referrals
+                      Admin
                     </Link>
                   </div>
                 )}

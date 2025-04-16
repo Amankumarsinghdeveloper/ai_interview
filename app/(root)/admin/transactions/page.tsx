@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { SearchInput } from "@/components/ui/search-input";
 import { Pagination } from "@/components/ui/pagination";
+import { AdminNav } from "@/components/admin-nav";
 
 interface Transaction {
   id: string;
@@ -162,20 +163,7 @@ export default function AdminTransactionsPage() {
         Transaction History
       </h1>
 
-      <div className="flex space-x-4 mb-6">
-        <button
-          onClick={() => router.push("/admin/users")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          User Management
-        </button>
-        <button
-          onClick={() => router.push("/admin/referrals")}
-          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
-        >
-          Referral Management
-        </button>
-      </div>
+      <AdminNav />
 
       {/* Search Bar */}
       <div className="mb-6">
@@ -318,7 +306,6 @@ export default function AdminTransactionsPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          className="mt-6"
         />
       )}
 

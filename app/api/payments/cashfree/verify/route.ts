@@ -132,7 +132,6 @@ export async function GET(req: NextRequest) {
           .then((snapshot) => {
             if (!snapshot.empty) {
               snapshot.docs[0].ref.update({
-                status: "PAYMENT_COMPLETED_WAITING_WEBHOOK",
                 updatedAt: new Date(),
               });
             }
