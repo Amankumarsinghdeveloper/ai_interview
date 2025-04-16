@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import { toast } from "sonner";
@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination } from "@/components/ui/pagination";
 
 interface User {
   id: string;
@@ -43,6 +45,11 @@ export default function AdminUsersPage() {
   });
   const [isUpdating, setIsUpdating] = useState(false);
   const router = useRouter();
+
+  // Search and pagination state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     async function checkAdmin() {
@@ -78,6 +85,34 @@ export default function AdminUsersPage() {
     checkAdmin();
     fetchUsers();
   }, [router]);
+
+  // Reset to first page when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Filter users based on search query
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return users.filter(
+      (user) =>
+        user.name?.toLowerCase().includes(lowerCaseQuery) ||
+        user.email?.toLowerCase().includes(lowerCaseQuery) ||
+        user.referralCode?.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [users, searchQuery]);
+
+  // Calculate pagination
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredUsers.length / itemsPerPage)
+  );
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredUsers, currentPage, itemsPerPage]);
 
   const handleCreditDialogOpen = (user: User) => {
     setSelectedUser(user);
@@ -181,7 +216,37 @@ export default function AdminUsersPage() {
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-6 text-white">User Management</h1>
 
-      <div className="bg-gray-900 shadow-lg rounded-lg overflow-hidden mb-8">
+      <div className="flex space-x-4 mb-6">
+        <button
+          onClick={() => router.push("/admin/referrals")}
+          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
+        >
+          Referral Management
+        </button>
+        <button
+          onClick={() => router.push("/admin/transactions")}
+          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm"
+        >
+          Transaction History
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-6">
+        <SearchInput
+          placeholder="Search by name, email or referral code..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-md"
+        />
+        <div className="mt-2 text-sm text-gray-400">
+          Showing {filteredUsers.length}{" "}
+          {filteredUsers.length === 1 ? "user" : "users"}
+          {searchQuery && ` for "${searchQuery}"`}
+        </div>
+      </div>
+
+      <div className="bg-gray-900 shadow-lg rounded-lg overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-800">
             <thead className="bg-gray-800">
@@ -225,7 +290,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody className="bg-gray-900 divide-y divide-gray-800">
-              {users.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-800/50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col">
@@ -264,13 +329,15 @@ export default function AdminUsersPage() {
                 </tr>
               ))}
 
-              {users.length === 0 && (
+              {paginatedUsers.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
                     className="px-6 py-4 text-center text-sm text-gray-400"
                   >
-                    No users found
+                    {searchQuery
+                      ? "No users found matching your search"
+                      : "No users found"}
                   </td>
                 </tr>
               )}
@@ -278,6 +345,16 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {filteredUsers.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          className="mt-6"
+        />
+      )}
 
       {/* Credits Dialog */}
       {selectedUser && (

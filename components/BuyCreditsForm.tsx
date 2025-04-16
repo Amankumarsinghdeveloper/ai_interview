@@ -63,7 +63,10 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
     setAmount(value);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePayment = async (
+    e: React.FormEvent,
+    usePaypal: boolean = false
+  ) => {
     e.preventDefault();
 
     if (amount < 1) {
@@ -75,7 +78,17 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
 
     try {
       // Calculate total cost
-      const totalCost = parseFloat((amount * creditPrice).toFixed(2));
+      let totalCost = parseFloat((amount * creditPrice).toFixed(2));
+
+      // Add PayPal fee if using PayPal
+      if (usePaypal) {
+        totalCost = parseFloat((totalCost + totalCost * 0.07).toFixed(2));
+
+        // Ensure minimum amount of $1.00 for PayPal payments
+        if (totalCost < 1.0) {
+          totalCost = 1.0;
+        }
+      }
 
       // Create order with Cashfree
       const response = await fetch("/api/payments/cashfree/create-order", {
@@ -86,13 +99,20 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
         body: JSON.stringify({
           amount: totalCost,
           creditAmount: amount,
+          usePaypal: usePaypal,
         }),
       });
 
       const result = await response.json();
 
       if (!result.success) {
-        toast.error(result.message || "Failed to create payment order");
+        if (usePaypal && result.error?.includes("Currency not enabled")) {
+          toast.error(
+            "PayPal/USD payments are not enabled. Please use the regular payment option."
+          );
+        } else {
+          toast.error(result.message || "Failed to create payment order");
+        }
         setIsLoading(false);
         return;
       }
@@ -107,9 +127,15 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
   };
 
   const totalCost = (amount * creditPrice).toFixed(2);
+  const paypalCost = Math.max(
+    1.0,
+    parseFloat(
+      (parseFloat(totalCost) + parseFloat(totalCost) * 0.07).toFixed(2)
+    )
+  ).toFixed(2);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form className="space-y-6">
       {showMessage && messageType && (
         <div
           className={`p-4 rounded-lg mb-4 ${
@@ -168,17 +194,33 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
         </div>
       </div>
 
-      <Button
-        type="submit"
-        disabled={isLoading || amount < 1}
-        className="w-full h-12"
-        variant="default"
-        size="lg"
-      >
-        {isLoading
-          ? "Processing..."
-          : `Buy ${amount} Credits for $ ${totalCost}`}
-      </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Button
+          type="submit"
+          onClick={(e) => handlePayment(e, false)}
+          disabled={isLoading || amount < 1}
+          className="w-full h-12"
+          variant="default"
+          size="lg"
+        >
+          {isLoading
+            ? "Processing..."
+            : `Buy ${amount} Credits for $ ${totalCost}`}
+        </Button>
+
+        <Button
+          type="submit"
+          onClick={(e) => handlePayment(e, true)}
+          disabled={isLoading || amount < 1}
+          className="w-full h-12"
+          variant="default"
+          size="lg"
+        >
+          {isLoading
+            ? "Processing..."
+            : `Buy ${amount} Credits for $ ${paypalCost} (PAYPAL + 7% fee)`}
+        </Button>
+      </div>
 
       <div className="flex items-center justify-center gap-2 mt-4">
         <div className="relative h-5 w-24">

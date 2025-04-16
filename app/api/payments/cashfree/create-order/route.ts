@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
       // Get request body
       const body = await req.json();
-      const { amount, creditAmount } = body;
+      const { amount, creditAmount, usePaypal } = body;
 
       if (
         !amount ||
@@ -62,9 +62,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Convert USD to INR
+      // Set currency based on payment method
+      const orderCurrency = usePaypal ? "USD" : "INR";
+
+      // Convert USD to INR only for non-PayPal transactions
       const amountInUSD = parseFloat(amount);
-      const amountInINR = (amountInUSD * USD_TO_INR_RATE).toFixed(2);
+      const amountInINR = !usePaypal
+        ? (amountInUSD * USD_TO_INR_RATE).toFixed(2)
+        : amount; // For PayPal, use the amount directly (already in USD)
+
+      // Amount to charge in Cashfree - use USD amount for PayPal, INR amount otherwise
+      // Ensure minimum order amount: 1 USD for USD payments, 1 INR for INR payments
+      const orderAmount = usePaypal
+        ? Math.max(amountInUSD, 1) // Minimum 1 USD for PayPal
+        : parseFloat(amountInINR);
 
       // Get user data
       const userEmail = decodedClaims.email;
@@ -89,6 +100,9 @@ export async function POST(req: NextRequest) {
           orderId,
           amountInUSD,
           amountInINR,
+          orderAmount,
+          orderCurrency,
+          usePaypal,
           conversionRate: USD_TO_INR_RATE,
           environment: isProduction ? "Production" : "Sandbox",
         });
@@ -100,10 +114,14 @@ export async function POST(req: NextRequest) {
           userName: user.name,
           userEmail: user.email,
           amountUSD: amountInUSD,
-          amountINR: parseFloat(amountInINR),
+          amountINR: !usePaypal
+            ? parseFloat(amountInINR)
+            : amountInUSD * USD_TO_INR_RATE,
           creditAmount: parseInt(creditAmount),
           status: "CREATED",
           environment: isProduction ? "Production" : "Sandbox",
+          paymentMethod: usePaypal ? "PAYPAL" : "CASHFREE",
+          currency: orderCurrency,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -113,6 +131,28 @@ export async function POST(req: NextRequest) {
           ? "https://api.cashfree.com/pg/orders"
           : "https://sandbox.cashfree.com/pg/orders";
 
+        const requestBody = {
+          order_id: orderId,
+          order_amount: orderAmount,
+          order_currency: orderCurrency,
+          customer_details: {
+            customer_id: user.id,
+            customer_name: user.name || "User",
+            customer_email: user.email || "",
+            customer_phone: user.phone || "9999999999",
+          },
+          order_meta: {
+            return_url: `${baseUrl}/api/payments/cashfree/verify?orderId=${orderId}&creditAmount=${creditAmount}`,
+            notify_url: `${baseUrl}/api/payments/cashfree/webhook`,
+            credit_amount: creditAmount,
+            conversion_rate: USD_TO_INR_RATE,
+            amount_usd: amountInUSD,
+            usePaypal: usePaypal || false,
+          },
+        };
+
+        console.log("Cashfree request payload:", JSON.stringify(requestBody));
+
         const response = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
@@ -121,30 +161,30 @@ export async function POST(req: NextRequest) {
             "x-client-secret": secretKey,
             "x-api-version": "2022-01-01",
           },
-          body: JSON.stringify({
-            order_id: orderId,
-            order_amount: parseFloat(amountInINR),
-            order_currency: "INR",
-            customer_details: {
-              customer_id: user.id,
-              customer_name: user.name || "User",
-              customer_email: user.email || "",
-              customer_phone: user.phone || "9999999999",
-            },
-            order_meta: {
-              return_url: `${baseUrl}/api/payments/cashfree/verify?orderId=${orderId}&creditAmount=${creditAmount}`,
-              notify_url: `${baseUrl}/api/payments/cashfree/webhook`,
-              credit_amount: creditAmount,
-              conversion_rate: USD_TO_INR_RATE,
-              amount_usd: amountInUSD,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         const result = await response.json();
         console.log("Cashfree response:", result);
 
         if (!response.ok) {
+          // Check if this is a currency not enabled error
+          if (
+            usePaypal &&
+            result.message &&
+            result.message.includes("Currency not enabled")
+          ) {
+            console.error("USD currency not enabled for this account:", result);
+            return NextResponse.json(
+              {
+                success: false,
+                message: "PayPal/USD payments are not currently supported",
+                error: "USD Currency not enabled for this merchant account",
+              },
+              { status: 400 }
+            );
+          }
+
           // Update transaction status in the database
           await db
             .collection("transactions")
