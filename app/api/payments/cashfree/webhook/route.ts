@@ -197,22 +197,29 @@ export async function POST(req: NextRequest) {
 
     // Update transaction with webhook data
     try {
+      console.log(transactionData);
+
+      // Get current status from transaction - check both possible locations
+      const currentStatus =
+        transactionData?.paymentDetails?.order_status ||
+        transactionData.status ||
+        "UNKNOWN";
+
       // Only include status if it's changed
-      if (order_status && order_status !== transactionData.status) {
-        console.log(
-          `Updating status from ${transactionData.status} to ${order_status}`
-        );
+      if (order_status && order_status !== currentStatus) {
+        console.log(`Updating status from ${currentStatus} to ${order_status}`);
 
         // Update transaction with new webhook data and status
         await transactionDoc.ref.update({
           webhookData: data,
+          status: order_status, // Always update top-level status
           lastPaymentStatus: data.data.payment?.payment_status,
           updatedAt: new Date(),
           lastWebhookAt: new Date(),
         });
         console.log(`Transaction updated from webhook for order ${order_id}`);
       } else {
-        console.log(`Transaction status unchanged: ${transactionData.status}`);
+        console.log(`Transaction status unchanged: ${currentStatus}`);
       }
     } catch (updateError) {
       console.error(
@@ -259,15 +266,21 @@ export async function POST(req: NextRequest) {
 
     // Handle different payment statuses
     if (data.data.payment?.payment_status === "SUCCESS") {
+      // Get current status from transaction - check both possible locations
+      const currentStatus =
+        transactionData?.paymentDetails?.order_status ||
+        transactionData.status ||
+        "UNKNOWN";
+
       // Only add credits if transaction is in PENDING_PAYMENT state
-      if (transactionData.status !== "PENDING_PAYMENT") {
+      if (currentStatus !== "PENDING_PAYMENT") {
         console.log(
-          `Transaction already processed (status: ${transactionData.status}), not adding credits again`
+          `Transaction already processed (status: ${currentStatus}), not adding credits again`
         );
         return NextResponse.json(
           {
             message: "Webhook received but transaction already processed",
-            currentStatus: transactionData.status,
+            currentStatus: currentStatus,
           },
           { status: 200 }
         );
@@ -377,11 +390,14 @@ export async function POST(req: NextRequest) {
         data.data.payment?.payment_status || ""
       )
     ) {
+      // Get current status from transaction - check both possible locations
+      const currentStatus =
+        transactionData?.paymentDetails?.order_status ||
+        transactionData.status ||
+        "UNKNOWN";
+
       // Only deduct credits if they were already added (transaction is COMPLETED)
-      if (
-        transactionData.status === "COMPLETED" &&
-        transactionData.creditsAdded
-      ) {
+      if (currentStatus === "COMPLETED" && transactionData.creditsAdded) {
         console.log(
           `Payment status changed to ${data.data.payment?.payment_status} for completed order ${order_id}, reverting credits`
         );
@@ -491,7 +507,7 @@ export async function POST(req: NextRequest) {
       } else {
         // Transaction wasn't COMPLETED, so no credits were added
         console.log(
-          `Order ${order_id} status changed to ${data.data.payment?.payment_status}, but no credits were previously added (status: ${transactionData.status})`
+          `Order ${order_id} status changed to ${data.data.payment?.payment_status}, but no credits were previously added (status: ${currentStatus})`
         );
 
         // Update status to reflect the payment failure
@@ -503,19 +519,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             message: `Payment ${data.data.payment?.payment_status}, no credits were previously added`,
-            currentStatus: transactionData.status,
+            currentStatus: currentStatus,
           },
           { status: 200 }
         );
       }
     }
 
+    // Get current status from transaction - check both possible locations
+    const currentStatus =
+      transactionData?.paymentDetails?.order_status ||
+      transactionData.status ||
+      "UNKNOWN";
+
     // For other statuses, just acknowledge receipt
     return NextResponse.json(
       {
         message: `Webhook received, order status: ${order_status}`,
         orderId: order_id,
-        currentStatus: transactionData.status,
+        currentStatus: currentStatus,
         newStatus: order_status,
       },
       { status: 200 }
