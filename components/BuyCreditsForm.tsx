@@ -194,7 +194,7 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
         <Button
           type="submit"
           onClick={(e) => handlePayment(e, false)}
@@ -208,7 +208,7 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
             : `Buy ${amount} Credits for $ ${totalCost}`}
         </Button>
 
-        <Button
+        {/* <Button
           type="submit"
           onClick={(e) => handlePayment(e, true)}
           disabled={isLoading || amount < 1}
@@ -219,7 +219,7 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
           {isLoading
             ? "Processing..."
             : `Buy ${amount} Credits for $ ${paypalCost} (PAYPAL + 7% fee)`}
-        </Button>
+        </Button> */}
       </div>
 
       <div className="flex items-center justify-center gap-2 mt-4">
