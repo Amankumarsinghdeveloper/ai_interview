@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextResponse } from "next/server";
 
 export async function GET() {
   try {
@@ -23,19 +23,54 @@ export async function GET() {
       conversionRate: USD_TO_INR_RATE,
     });
 
-    // Try to create a test order with Basic Auth
+    // Use the appropriate endpoint based on environment
+    const apiEndpoint = isProduction
+      ? "https://api.cashfree.com/pg/orders"
+      : "https://sandbox.cashfree.com/pg/orders";
+
+    // Try alternating between Authentication methods
+
+    // Method 1: Try with Basic Auth
     const authString = Buffer.from(`${appId}:${secretKey}`).toString("base64");
-    const response = await fetch(
-      `https://${isProduction ? "api" : "sandbox"}.cashfree.com/pg/orders`,
-      {
+    const response = await fetch(apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${authString}`,
+        "x-api-version": "2022-01-01",
+      },
+      body: JSON.stringify({
+        order_id: testOrderId,
+        order_amount: parseFloat(testAmountINR),
+        order_currency: "INR",
+        order_note: `Test order ($${testAmountUSD} USD to ₹${testAmountINR} INR)`,
+        customer_details: {
+          customer_id: "test_customer",
+          customer_name: "Test User",
+          customer_email: "test@example.com",
+          customer_phone: "9999999999",
+        },
+      }),
+    });
+
+    let result = await response.json();
+    console.log("Method 1 (Basic Auth) Response:", result);
+
+    // If Method 1 fails, try Method 2: Direct credentials
+    if (!response.ok) {
+      console.log("First method failed, trying with direct credentials...");
+
+      const testOrderId2 = `test2_${Date.now()}`;
+      const response2 = await fetch(apiEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Basic ${authString}`,
-          "x-api-version": "2022-09-01",
+          "x-client-id": appId,
+          "x-client-secret": secretKey,
+          "x-api-version": "2022-01-01",
         },
         body: JSON.stringify({
-          order_id: testOrderId,
+          order_id: testOrderId2,
           order_amount: parseFloat(testAmountINR),
           order_currency: "INR",
           order_note: `Test order ($${testAmountUSD} USD to ₹${testAmountINR} INR)`,
@@ -46,57 +81,29 @@ export async function GET() {
             customer_phone: "9999999999",
           },
         }),
-      }
-    );
-
-    // Log the raw response for debugging
-    console.log("Cashfree response status:", response.status);
-
-    const result = await response.json();
-    console.log("Cashfree API response:", result);
-
-    if (!response.ok) {
-      // Try a different endpoint as a fallback
-      console.log("Trying alternative endpoint...");
-
-      const altResponse = await fetch(
-        "https://sandbox.cashfree.com/pg/orders",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-client-id": appId,
-            "x-client-secret": secretKey,
-            "x-api-version": "2022-01-01",
-          },
-          body: JSON.stringify({
-            order_id: `alt_${testOrderId}`,
-            order_amount: 1.0,
-            order_currency: "INR",
-            customer_details: {
-              customer_id: "test_customer",
-              customer_name: "Test User",
-              customer_email: "test@example.com",
-              customer_phone: "9999999999",
-            },
-          }),
-        }
-      );
-
-      const altResult = await altResponse.json();
-      console.log("Alternative endpoint response:", altResult);
-
-      return NextResponse.json({
-        success: false,
-        message: "Cashfree API test failed with both endpoints",
-        primaryError: result,
-        alternativeError: altResult,
-        credentials: {
-          appIdLength: appId.length,
-          secretKeyLength: secretKey.length,
-          environment: isProduction ? "production" : "sandbox",
-        },
       });
+
+      const result2 = await response2.json();
+      console.log("Method 2 (Direct credentials) Response:", result2);
+
+      if (response2.ok) {
+        result = result2;
+      } else {
+        // Return combined error information
+        return NextResponse.json({
+          success: false,
+          message: "Cashfree API test failed with both methods",
+          errors: {
+            basicAuth: result,
+            directCredentials: result2,
+          },
+          credentials: {
+            appIdLength: appId.length,
+            secretKeyLength: secretKey.length,
+            environment: isProduction ? "production" : "sandbox",
+          },
+        });
+      }
     }
 
     return NextResponse.json({

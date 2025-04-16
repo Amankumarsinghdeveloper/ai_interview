@@ -6,6 +6,8 @@ import { addCredits } from "@/lib/actions/credit.action";
 // Initialize Cashfree configuration
 const appId = process.env.CASHFREE_APP_ID || "";
 const secretKey = process.env.CASHFREE_SECRET_KEY || "";
+// Check if we're in production mode
+const isProduction = process.env.NODE_ENV === "production";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -60,19 +62,21 @@ export async function GET(req: NextRequest) {
             }
           });
 
+        // Use the appropriate endpoint based on environment
+        const apiEndpoint = isProduction
+          ? `https://api.cashfree.com/pg/orders/${orderId}`
+          : `https://sandbox.cashfree.com/pg/orders/${orderId}`;
+
         // Get order details from Cashfree
-        const response = await fetch(
-          `https://sandbox.cashfree.com/pg/orders/${orderId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "x-client-id": appId,
-              "x-client-secret": secretKey,
-              "x-api-version": "2022-01-01",
-            },
-          }
-        );
+        const response = await fetch(apiEndpoint, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": appId,
+            "x-client-secret": secretKey,
+            "x-api-version": "2022-01-01",
+          },
+        });
 
         const result = await response.json();
         console.log("Cashfree order status:", result);

@@ -6,8 +6,17 @@ import { auth, db } from "@/firebase/admin";
 // Initialize Cashfree configuration
 const appId = process.env.CASHFREE_APP_ID || "";
 const secretKey = process.env.CASHFREE_SECRET_KEY || "";
+// Check if we're in production mode
+const isProduction = process.env.NODE_ENV === "production";
 // USD to INR conversion rate
 const USD_TO_INR_RATE = parseFloat(process.env.USD_TO_INR_RATE || "85.6");
+
+// Log environment settings for debugging
+console.log("Cashfree Environment Settings:", {
+  environment: isProduction ? "Production" : "Sandbox",
+  appIdPrefix: appId.substring(0, 4),
+  secretKeyPrefix: secretKey.substring(0, 4),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,6 +90,7 @@ export async function POST(req: NextRequest) {
           amountInUSD,
           amountInINR,
           conversionRate: USD_TO_INR_RATE,
+          environment: isProduction ? "Production" : "Sandbox",
         });
 
         // Record the order creation in the database
@@ -93,11 +103,17 @@ export async function POST(req: NextRequest) {
           amountINR: parseFloat(amountInINR),
           creditAmount: parseInt(creditAmount),
           status: "CREATED",
+          environment: isProduction ? "Production" : "Sandbox",
           createdAt: new Date(),
           updatedAt: new Date(),
         });
 
-        const response = await fetch("https://sandbox.cashfree.com/pg/orders", {
+        // Use the appropriate endpoint based on environment
+        const apiEndpoint = isProduction
+          ? "https://api.cashfree.com/pg/orders"
+          : "https://sandbox.cashfree.com/pg/orders";
+
+        const response = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

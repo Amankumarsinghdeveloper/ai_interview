@@ -5,6 +5,7 @@ import crypto from "crypto";
 
 // Initialize Cashfree configuration
 const secretKey = process.env.CASHFREE_SECRET_KEY || "";
+const isProduction = process.env.NODE_ENV === "production";
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
         signature: signature,
         timestamp: timestamp,
       },
+      environment: isProduction ? "Production" : "Sandbox",
       receivedAt: new Date(),
     });
 
