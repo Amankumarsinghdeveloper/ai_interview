@@ -3,40 +3,42 @@ import { addCredits } from "@/lib/actions/credit.action";
 import { db } from "@/firebase/admin";
 import crypto from "crypto";
 
-// Define webhook data types for both old and new formats
+// Define webhook data type for Cashfree v2 format
 interface CashfreeWebhookData {
   data?: {
     order?: {
       order_id?: string;
-      order_status?: string;
       order_amount?: number;
-      customer_details?: {
-        customer_id?: string;
-        [key: string]: unknown;
-      };
-      order_meta?: {
-        credit_amount?: string;
-        [key: string]: unknown;
-      };
+      order_currency?: string;
+      order_tags?: null | Record<string, unknown>;
       [key: string]: unknown;
     };
     payment?: {
-      payment_status?: string;
       cf_payment_id?: string;
+      payment_status?: string;
       payment_amount?: number;
+      payment_currency?: string;
+      payment_message?: string;
+      payment_time?: string;
+      bank_reference?: string;
+      auth_id?: string | null;
+      payment_method?: Record<string, unknown>;
+      payment_group?: string;
       [key: string]: unknown;
     };
     customer_details?: {
+      customer_name?: string;
       customer_id?: string;
       customer_email?: string;
       customer_phone?: string;
-      customer_name?: string;
       [key: string]: unknown;
     };
+    payment_gateway_details?: Record<string, unknown>;
+    payment_offers?: null | Record<string, unknown>;
     [key: string]: unknown;
   };
-  type?: string;
   event_time?: string;
+  type?: string;
   [key: string]: unknown;
 }
 
@@ -56,15 +58,11 @@ export async function POST(req: NextRequest) {
     try {
       data = JSON.parse(rawBody);
 
-      // Handle both old and new webhook formats
+      // Extract orderId from the webhook
       if (data?.data?.order?.order_id) {
-        // Old format
         orderId = data.data.order.order_id;
-      } else if (data?.data?.order) {
-        // New format (v2)
-        orderId = data.data.order.order_id || "unknown";
       } else {
-        console.warn("Unknown webhook format, orderId not found");
+        console.warn("Cannot find order_id in webhook payload");
       }
     } catch (parseError) {
       console.error("Failed to parse webhook payload:", parseError);
@@ -82,15 +80,8 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get("x-webhook-signature") || "";
     const timestamp = req.headers.get("x-webhook-timestamp") || "";
 
-    // Extract payment status based on format
-    let paymentStatus: string | undefined;
-    if (data?.data?.order?.order_status) {
-      // Old format
-      paymentStatus = data.data.order.order_status;
-    } else if (data?.data?.payment?.payment_status) {
-      // New format - directly use payment status from webhook
-      paymentStatus = data.data.payment.payment_status;
-    }
+    // Extract payment status
+    const paymentStatus = data?.data?.payment?.payment_status;
 
     console.log("Received webhook data:", {
       orderId,
@@ -159,7 +150,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if it's a valid webhook payload
-    if (!data || !data.data) {
+    if (!data || !data.data || !data.data.payment) {
       console.error("Invalid webhook payload structure:", JSON.stringify(data));
       return NextResponse.json(
         { message: "Invalid webhook payload structure" },
@@ -167,7 +158,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the transaction in the database first to get existing data
+    // Find the transaction in the database to get credit amount and other details
     let transactionSnapshot;
     try {
       transactionSnapshot = await db
@@ -192,63 +183,23 @@ export async function POST(req: NextRequest) {
       : transactionSnapshot.docs[0];
     const transactionData = transactionDoc?.data();
 
-    // Extract necessary data based on payload format and database record
-    const order_id: string = orderId; // Already extracted
-    let order_status: string | undefined;
-    let order_amount: number | undefined;
-    let customer_id: string | undefined;
-    let credit_amount: string | undefined;
+    // Extract necessary data from webhook and transaction
+    const order_id: string = orderId;
+    const order_amount = data.data.payment?.payment_amount;
+    const customer_id =
+      data.data.customer_details?.customer_id || transactionData?.userId;
+    let credit_amount = transactionData?.creditAmount
+      ? String(transactionData.creditAmount)
+      : undefined;
 
-    // Determine the order status based on webhook and transaction data
-    if (data?.data?.payment?.payment_status === "SUCCESS") {
-      // New format with success payment
+    // Map payment status to our internal status
+    let order_status: string;
+    if (data.data.payment?.payment_status === "SUCCESS") {
       order_status = "PAID";
-    } else if (data?.data?.order?.order_status) {
-      // Old format
-      order_status = data.data.order.order_status;
-    } else if (data?.data?.payment?.payment_status) {
-      // New format with other payment status
+    } else if (data.data.payment?.payment_status) {
       order_status = data.data.payment.payment_status;
-    } else if (transactionData?.status) {
-      // Fallback to existing transaction status
-      order_status = transactionData.status;
     } else {
-      // Default status if nothing found
       order_status = "UNKNOWN";
-    }
-
-    // Extract other information from old format
-    if (data.data.order) {
-      // Get data from order object
-      order_amount = data.data.order.order_amount;
-
-      if (data.data.order.customer_details) {
-        customer_id = data.data.order.customer_details.customer_id;
-      }
-
-      if (data.data.order.order_meta) {
-        credit_amount = data.data.order.order_meta.credit_amount;
-      }
-    }
-
-    // Extract data from new format
-    if (data.data.payment) {
-      // Get amount from payment
-      order_amount = data.data.payment.payment_amount;
-    }
-
-    if (data.data.customer_details) {
-      // Get customer ID from customer_details
-      customer_id = data.data.customer_details.customer_id;
-    }
-
-    // Get data from transaction if not available in webhook
-    if (!customer_id && transactionData?.userId) {
-      customer_id = transactionData.userId;
-    }
-
-    if (!credit_amount && transactionData?.creditAmount) {
-      credit_amount = String(transactionData.creditAmount);
     }
 
     // Transaction record handling
@@ -277,7 +228,7 @@ export async function POST(req: NextRequest) {
             lastWebhookAt: new Date(),
           };
 
-          // Only include status if it's defined and changed
+          // Only include status if it's changed
           if (order_status && order_status !== transactionData?.status) {
             updateData.status = order_status;
             console.log(
@@ -303,42 +254,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If payment is successful, check if credits were added
-    if (
-      order_status === "PAID" ||
-      order_status === "SUCCESS" ||
-      data?.data?.payment?.payment_status === "SUCCESS"
-    ) {
+    // If payment is successful, add credits
+    if (data.data.payment?.payment_status === "SUCCESS") {
       // Extract user ID and credit amount
       if (!customer_id) {
-        console.error("Missing customer_id in webhook payload and transaction");
+        console.error("Missing customer_id in webhook and transaction");
         return NextResponse.json(
           { message: "Missing customer_id for credit processing" },
           { status: 400 }
         );
       }
 
-      if (!credit_amount && transactionData) {
-        // Try to get credit amount from transaction
-        if (transactionData.creditAmount) {
-          credit_amount = String(transactionData.creditAmount);
-        } else {
-          console.error(
-            "Credit amount not found in transaction or webhook payload"
+      // If credit amount is not available, use payment amount as fallback
+      if (!credit_amount) {
+        if (order_amount) {
+          // Basic fallback: 1 unit of currency = 1 credit
+          credit_amount = String(Math.round(order_amount));
+          console.log(
+            `Using payment amount as fallback for credits: ${credit_amount}`
           );
+        } else {
+          console.error("No credit amount or payment amount available");
           return NextResponse.json(
-            { message: "Missing credit_amount for credit processing" },
+            { message: "Cannot determine credit amount" },
             { status: 400 }
           );
         }
-      }
-
-      if (!credit_amount) {
-        console.error("Credit amount not found");
-        return NextResponse.json(
-          { message: "Missing credit_amount for credit processing" },
-          { status: 400 }
-        );
       }
 
       // Ensure credit_amount is a valid number
