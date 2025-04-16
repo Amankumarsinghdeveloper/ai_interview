@@ -189,6 +189,9 @@ export async function POST(req: NextRequest) {
       order_status = "FAILED";
     } else if (data.data.payment?.payment_status === "REFUNDED") {
       order_status = "REFUNDED";
+    } else if (data.data.payment?.payment_status === "PAID") {
+      // Handle PAID status from Cashfree as COMPLETED for consistency
+      order_status = "COMPLETED";
     } else if (data.data.payment?.payment_status) {
       order_status = data.data.payment.payment_status;
     } else {
@@ -273,7 +276,13 @@ export async function POST(req: NextRequest) {
         "UNKNOWN";
 
       // Only add credits if transaction is in PENDING_PAYMENT state
-      if (currentStatus !== "PENDING_PAYMENT") {
+      // Also, don't perform credit addition again if already in COMPLETED or PAID state
+      if (
+        currentStatus !== "PENDING_PAYMENT" &&
+        currentStatus !== "PAID" && // Don't treat PAID as already processed (it comes from the verify endpoint)
+        currentStatus !== "COMPLETED"
+      ) {
+        // Skip only if we're already in a final state other than PAID
         console.log(
           `Transaction already processed (status: ${currentStatus}), not adding credits again`
         );
@@ -282,6 +291,23 @@ export async function POST(req: NextRequest) {
             message: "Webhook received but transaction already processed",
             currentStatus: currentStatus,
           },
+          { status: 200 }
+        );
+      }
+
+      // If we're in PAID state, update to COMPLETED while preserving credits
+      if (currentStatus === "PAID") {
+        console.log(
+          `Updating from PAID to COMPLETED status for order ${order_id}`
+        );
+        await transactionDoc.ref.update({
+          status: "COMPLETED",
+          lastPaymentStatus: data.data.payment?.payment_status,
+          updatedAt: new Date(),
+          lastWebhookAt: new Date(),
+        });
+        return NextResponse.json(
+          { message: "Updated status from PAID to COMPLETED" },
           { status: 200 }
         );
       }
