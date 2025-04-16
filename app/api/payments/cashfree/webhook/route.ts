@@ -3,7 +3,7 @@ import { addCredits } from "@/lib/actions/credit.action";
 import { db } from "@/firebase/admin";
 import crypto from "crypto";
 
-// Define webhook data type
+// Define webhook data types for both old and new formats
 interface CashfreeWebhookData {
   data?: {
     order?: {
@@ -20,8 +20,23 @@ interface CashfreeWebhookData {
       };
       [key: string]: unknown;
     };
+    payment?: {
+      payment_status?: string;
+      cf_payment_id?: string;
+      payment_amount?: number;
+      [key: string]: unknown;
+    };
+    customer_details?: {
+      customer_id?: string;
+      customer_email?: string;
+      customer_phone?: string;
+      customer_name?: string;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
+  type?: string;
+  event_time?: string;
   [key: string]: unknown;
 }
 
@@ -40,7 +55,17 @@ export async function POST(req: NextRequest) {
 
     try {
       data = JSON.parse(rawBody);
-      orderId = data?.data?.order?.order_id || "unknown";
+
+      // Handle both old and new webhook formats
+      if (data?.data?.order?.order_id) {
+        // Old format
+        orderId = data.data.order.order_id;
+      } else if (data?.data?.order) {
+        // New format (v2)
+        orderId = data.data.order.order_id || "unknown";
+      } else {
+        console.warn("Unknown webhook format, orderId not found");
+      }
     } catch (parseError) {
       console.error("Failed to parse webhook payload:", parseError);
       // Log the raw body for debugging (truncate if too large)
@@ -57,9 +82,20 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get("x-webhook-signature") || "";
     const timestamp = req.headers.get("x-webhook-timestamp") || "";
 
+    // Extract payment status based on format
+    let paymentStatus: string | undefined;
+    if (data?.data?.order?.order_status) {
+      // Old format
+      paymentStatus = data.data.order.order_status;
+    } else if (data?.data?.payment?.payment_status) {
+      // New format
+      paymentStatus = data.data.payment.payment_status;
+    }
+
     console.log("Received webhook data:", {
       orderId,
-      status: data?.data?.order?.order_status,
+      status: paymentStatus,
+      type: data.type,
       signature: signature ? "present" : "missing",
       timestamp: timestamp,
       payload: JSON.stringify(data).substring(0, 500) + "...", // Log partial payload for debugging
@@ -123,7 +159,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if it's a valid webhook payload
-    if (!data || !data.data || !data.data.order) {
+    if (!data || !data.data) {
       console.error("Invalid webhook payload structure:", JSON.stringify(data));
       return NextResponse.json(
         { message: "Invalid webhook payload structure" },
@@ -131,14 +167,65 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { order } = data.data;
-    const {
-      order_id,
-      order_status,
-      order_amount,
-      customer_details,
-      order_meta,
-    } = order;
+    // Extract necessary data based on payload format
+    let order_id: string | undefined;
+    let order_status: string | undefined;
+    let order_amount: number | undefined;
+    let customer_id: string | undefined;
+    let credit_amount: string | undefined;
+
+    // Extract data from old format
+    if (data.data.order && data.data.order.order_id) {
+      // Old format
+      const { order } = data.data;
+      order_id = order.order_id;
+      order_status = order.order_status;
+      order_amount = order.order_amount;
+
+      // Extract customer details and credit amount from old format
+      if (order.customer_details) {
+        customer_id = order.customer_details.customer_id;
+      }
+
+      if (order.order_meta) {
+        credit_amount = order.order_meta.credit_amount;
+      }
+    }
+    // Extract data from new format
+    else if (data.data.order && data.data.payment) {
+      // New format
+      order_id = data.data.order.order_id;
+      order_status =
+        data.data.payment.payment_status === "SUCCESS"
+          ? "PAID"
+          : data.data.payment.payment_status;
+      order_amount = data.data.payment.payment_amount;
+
+      // Extract customer details from new format
+      if (data.data.customer_details) {
+        customer_id = data.data.customer_details.customer_id;
+      }
+
+      // For new format, we need to fetch credit_amount from transactions
+      // We'll handle this later in the payment processing section
+    } else {
+      console.error(
+        "Unrecognized webhook format:",
+        JSON.stringify(data).substring(0, 500) + "..."
+      );
+      return NextResponse.json(
+        { message: "Unrecognized webhook format" },
+        { status: 400 }
+      );
+    }
+
+    if (!order_id) {
+      console.error("Missing order_id in webhook payload");
+      return NextResponse.json(
+        { message: "Missing order_id in webhook payload" },
+        { status: 400 }
+      );
+    }
 
     // Find the transaction in the database
     let transactionSnapshot;
@@ -162,6 +249,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get the transaction record if it exists
+    const transactionDoc = transactionSnapshot.empty
+      ? null
+      : transactionSnapshot.docs[0];
+    const transactionData = transactionDoc?.data();
+
+    // Get credit_amount from transaction if not available in webhook
+    if (!credit_amount && transactionData && transactionData.creditAmount) {
+      credit_amount = String(transactionData.creditAmount);
+    }
+
     // Transaction record handling
     try {
       if (transactionSnapshot.empty) {
@@ -181,15 +279,18 @@ export async function POST(req: NextRequest) {
         );
       } else {
         // Update existing transaction
-        const transactionDoc = transactionSnapshot.docs[0];
-        await transactionDoc.ref.update({
-          status: order_status,
-          webhookData: data,
-          updatedAt: new Date(),
-          lastWebhookAt: new Date(),
-        });
+        if (transactionDoc) {
+          await transactionDoc.ref.update({
+            status: order_status,
+            webhookData: data,
+            updatedAt: new Date(),
+            lastWebhookAt: new Date(),
+          });
 
-        console.log(`Transaction updated from webhook for order ${order_id}`);
+          console.log(`Transaction updated from webhook for order ${order_id}`);
+        } else {
+          console.error(`Transaction document is null for order ${order_id}`);
+        }
       }
     } catch (updateError) {
       console.error(
@@ -203,40 +304,50 @@ export async function POST(req: NextRequest) {
     }
 
     // If payment is successful, check if credits were added
-    if (order_status === "PAID") {
+    if (order_status === "PAID" || order_status === "SUCCESS") {
       // Extract user ID and credit amount
-      if (
-        !customer_details ||
-        !customer_details.customer_id ||
-        !order_meta ||
-        !order_meta.credit_amount
-      ) {
-        console.error(
-          "Missing required data in webhook payload:",
-          JSON.stringify({
-            customer_id: customer_details?.customer_id,
-            credit_amount: order_meta?.credit_amount,
-          })
-        );
+      if (!customer_id) {
+        console.error("Missing customer_id in webhook payload");
         return NextResponse.json(
-          { message: "Missing required data for credit processing" },
+          { message: "Missing customer_id for credit processing" },
           { status: 400 }
         );
       }
 
-      const userId = customer_details.customer_id;
+      if (!credit_amount && transactionData) {
+        // Try to get credit amount from transaction
+        if (transactionData.creditAmount) {
+          credit_amount = String(transactionData.creditAmount);
+        } else {
+          console.error(
+            "Credit amount not found in transaction or webhook payload"
+          );
+          return NextResponse.json(
+            { message: "Missing credit_amount for credit processing" },
+            { status: 400 }
+          );
+        }
+      }
+
+      if (!credit_amount) {
+        console.error("Credit amount not found");
+        return NextResponse.json(
+          { message: "Missing credit_amount for credit processing" },
+          { status: 400 }
+        );
+      }
 
       // Ensure credit_amount is a valid number
       let creditAmount: number;
       try {
-        creditAmount = parseInt(order_meta.credit_amount);
+        creditAmount = parseInt(credit_amount);
         if (isNaN(creditAmount) || creditAmount <= 0) {
           throw new Error("Invalid credit amount");
         }
       } catch {
         console.error(
           `Invalid credit amount for order ${order_id}:`,
-          order_meta.credit_amount
+          credit_amount
         );
         return NextResponse.json(
           { message: "Invalid credit amount" },
@@ -245,8 +356,6 @@ export async function POST(req: NextRequest) {
       }
 
       // Check if credits were already added
-      const transactionData = transactionSnapshot.docs[0]?.data();
-
       if (
         transactionData &&
         transactionData.status === "COMPLETED" &&
@@ -262,10 +371,10 @@ export async function POST(req: NextRequest) {
 
       // Add credits to the user's account
       console.log(
-        `Adding ${creditAmount} credits to user ${userId} for order ${order_id}`
+        `Adding ${creditAmount} credits to user ${customer_id} for order ${order_id}`
       );
       try {
-        const addCreditsResult = await addCredits(userId, creditAmount);
+        const addCreditsResult = await addCredits(customer_id, creditAmount);
 
         if (!addCreditsResult.success) {
           console.error(
@@ -330,7 +439,7 @@ export async function POST(req: NextRequest) {
           });
 
         console.log(
-          `Successfully added ${creditAmount} credits to user ${userId} for order ${order_id}`
+          `Successfully added ${creditAmount} credits to user ${customer_id} for order ${order_id}`
         );
       } catch (updateError) {
         console.error(
@@ -346,7 +455,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // For non-PAID statuses, just acknowledge receipt
+    // For non-success statuses, just acknowledge receipt
     return NextResponse.json(
       { message: `Webhook received, order status: ${order_status}` },
       { status: 200 }
