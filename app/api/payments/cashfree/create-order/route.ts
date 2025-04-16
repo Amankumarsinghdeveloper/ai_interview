@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
       // Get request body
       const body = await req.json();
-      const { amount, creditAmount, usePaypal } = body;
+      const { amount, creditAmount, usePaypal, phoneNumber } = body;
 
       if (
         !amount ||
@@ -58,6 +58,13 @@ export async function POST(req: NextRequest) {
       ) {
         return NextResponse.json(
           { success: false, message: "Invalid amount" },
+          { status: 400 }
+        );
+      }
+
+      if (!phoneNumber) {
+        return NextResponse.json(
+          { success: false, message: "Phone number is required" },
           { status: 400 }
         );
       }
@@ -113,6 +120,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           userName: user.name,
           userEmail: user.email,
+          userPhone: phoneNumber,
           amountUSD: amountInUSD,
           amountINR: !usePaypal
             ? parseFloat(amountInINR)
@@ -139,7 +147,7 @@ export async function POST(req: NextRequest) {
             customer_id: user.id,
             customer_name: user.name || "User",
             customer_email: user.email || "",
-            customer_phone: user.phone || "9999999999",
+            customer_phone: phoneNumber,
           },
           order_meta: {
             return_url: `${baseUrl}/api/payments/cashfree/verify?orderId=${orderId}&creditAmount=${creditAmount}`,

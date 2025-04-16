@@ -22,6 +22,8 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
     "success" | "error" | "pending" | null
   >(null);
   const [messageText, setMessageText] = useState<string>("");
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [countryCode, setCountryCode] = useState<string>("+91");
 
   const predefinedAmounts = [5, 10, 20, 50, 100];
 
@@ -71,6 +73,14 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
     }
   };
 
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhoneNumber(e.target.value);
+  };
+
+  const handleCountryCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCountryCode(e.target.value);
+  };
+
   const handlePredefinedAmount = (value: number) => {
     setAmount(value);
   };
@@ -80,6 +90,11 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
 
     if (amount < 1) {
       toast.error("Please select a valid amount of credits");
+      return;
+    }
+
+    if (!phoneNumber) {
+      toast.error("Please enter your phone number");
       return;
     }
 
@@ -99,6 +114,7 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
           amount: totalCost,
           creditAmount: amount,
           usePaypal: false,
+          phoneNumber: `${countryCode}${phoneNumber}`,
         }),
       });
 
@@ -172,6 +188,33 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
         </div>
       </div>
 
+      <div>
+        <label
+          htmlFor="phoneNumber"
+          className="block mb-3 font-medium text-light-100"
+        >
+          Phone Number <span className="text-red-500">*</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            id="countryCode"
+            value={countryCode}
+            onChange={handleCountryCodeChange}
+            className="h-12 w-20"
+          />
+          <Input
+            type="tel"
+            id="phoneNumber"
+            value={phoneNumber}
+            onChange={handlePhoneNumberChange}
+            placeholder="Your phone number"
+            required
+            className="h-12 flex-1"
+          />
+        </div>
+      </div>
+
       <div className="bg-dark-300 p-5 rounded-xl">
         <div className="flex justify-between">
           <span>Unit Price:</span>
@@ -186,7 +229,7 @@ const BuyCreditsForm = ({ creditPrice }: BuyCreditsFormProps) => {
       <Button
         type="submit"
         onClick={handlePayment}
-        disabled={isLoading || amount < 1}
+        disabled={isLoading || amount < 1 || !phoneNumber}
         className="w-full h-12"
         variant="default"
         size="lg"
