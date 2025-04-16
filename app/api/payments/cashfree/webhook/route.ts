@@ -92,26 +92,6 @@ export async function POST(req: NextRequest) {
       payload: JSON.stringify(data).substring(0, 500) + "...", // Log partial payload for debugging
     });
 
-    // Save the webhook data to the database first, before validation
-    // This ensures we capture all incoming webhooks even if they fail later
-    try {
-      await db.collection("webhooks").add({
-        orderId,
-        payload: data,
-        rawBody: rawBody.substring(0, 1000), // Store truncated raw body for debugging
-        headers: {
-          signature: signature,
-          timestamp: timestamp,
-        },
-        environment: isProduction ? "Production" : "Sandbox",
-        receivedAt: new Date(),
-      });
-      console.log(`Webhook data saved for order ${orderId}`);
-    } catch (dbError) {
-      console.error("Error saving webhook data:", dbError);
-      // Continue processing even if saving to DB fails
-    }
-
     // Verify signature if present (recommended for production)
     if (signature && timestamp && secretKey) {
       try {
@@ -215,25 +195,25 @@ export async function POST(req: NextRequest) {
       order_status = "UNKNOWN";
     }
 
-    // Transaction record handling
+    // Update transaction with webhook data
     try {
-      // Update existing transaction with webhook data
-      const updateData: Record<string, unknown> = {
-        webhookData: data,
-        updatedAt: new Date(),
-        lastWebhookAt: new Date(),
-      };
-
       // Only include status if it's changed
       if (order_status && order_status !== transactionData.status) {
-        updateData.status = order_status;
         console.log(
           `Updating status from ${transactionData.status} to ${order_status}`
         );
-      }
 
-      await transactionDoc.ref.update(updateData);
-      console.log(`Transaction updated from webhook for order ${order_id}`);
+        // Update transaction with new webhook data and status
+        await transactionDoc.ref.update({
+          webhookData: data,
+          lastPaymentStatus: data.data.payment?.payment_status,
+          updatedAt: new Date(),
+          lastWebhookAt: new Date(),
+        });
+        console.log(`Transaction updated from webhook for order ${order_id}`);
+      } else {
+        console.log(`Transaction status unchanged: ${transactionData.status}`);
+      }
     } catch (updateError) {
       console.error(
         `Error updating transaction for order ${order_id}:`,
@@ -547,9 +527,9 @@ export async function POST(req: NextRequest) {
       error instanceof Error ? error.stack : "No stack trace"
     );
 
-    // Try to save the error to the database for debugging
+    // Try to save the error to the transactions_errors collection for debugging
     try {
-      await db.collection("webhook_errors").add({
+      await db.collection("transaction_errors").add({
         timestamp: new Date(),
         orderId,
         error:
@@ -561,6 +541,7 @@ export async function POST(req: NextRequest) {
               }
             : String(error),
         rawBody: rawBody.substring(0, 1000), // Store truncated raw body for debugging
+        source: "webhook",
       });
     } catch (logError) {
       console.error("Failed to log webhook error to database:", logError);
