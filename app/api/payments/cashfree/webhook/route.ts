@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
     // Map payment status to our internal status
     let order_status: string;
     if (data.data.payment?.payment_status === "SUCCESS") {
-      order_status = "PAID";
+      order_status = "COMPLETED";
     } else if (data.data.payment?.payment_status === "FAILED") {
       order_status = "FAILED";
     } else if (data.data.payment?.payment_status === "REFUNDED") {
@@ -192,35 +192,27 @@ export async function POST(req: NextRequest) {
     } else if (data.data.payment?.payment_status) {
       order_status = data.data.payment.payment_status;
     } else {
-      order_status = "UNKNOWN";
+      order_status = "PENDING_PAYMENT";
     }
 
     // Update transaction with webhook data
     try {
       // Only include status if it's changed
-
-      console.log(transactionData);
-      if (
-        order_status &&
-        order_status !== transactionData.paymentDetails.order_status
-      ) {
+      if (order_status && order_status !== transactionData.status) {
         console.log(
-          `Updating status from ${transactionData.paymentDetails.order_status} to ${order_status}`
+          `Updating status from ${transactionData.status} to ${order_status}`
         );
 
         // Update transaction with new webhook data and status
         await transactionDoc.ref.update({
           webhookData: data,
-          "paymentDetails.order_status": order_status,
           lastPaymentStatus: data.data.payment?.payment_status,
           updatedAt: new Date(),
           lastWebhookAt: new Date(),
         });
         console.log(`Transaction updated from webhook for order ${order_id}`);
       } else {
-        console.log(
-          `Transaction status unchanged: ${transactionData.paymentDetails.order_status}`
-        );
+        console.log(`Transaction status unchanged: ${transactionData.status}`);
       }
     } catch (updateError) {
       console.error(
@@ -268,14 +260,14 @@ export async function POST(req: NextRequest) {
     // Handle different payment statuses
     if (data.data.payment?.payment_status === "SUCCESS") {
       // Only add credits if transaction is in PENDING_PAYMENT state
-      if (transactionData.paymentDetails.order_status !== "PENDING_PAYMENT") {
+      if (transactionData.status !== "PENDING_PAYMENT") {
         console.log(
-          `Transaction already processed (status: ${transactionData.paymentDetails.order_status}), not adding credits again`
+          `Transaction already processed (status: ${transactionData.status}), not adding credits again`
         );
         return NextResponse.json(
           {
             message: "Webhook received but transaction already processed",
-            currentStatus: transactionData.paymentDetails.order_status,
+            currentStatus: transactionData.status,
           },
           { status: 200 }
         );
@@ -286,7 +278,7 @@ export async function POST(req: NextRequest) {
         await transactionDoc.ref.update({
           processingCredits: true,
           processingStartedAt: new Date(),
-          "paymentDetails.order_status": "PROCESSING_PAYMENT", // Transitional status
+          status: "PROCESSING_PAYMENT", // Transitional status
         });
         console.log(`Marked order ${order_id} as processing`);
       } catch (lockError) {
@@ -311,7 +303,7 @@ export async function POST(req: NextRequest) {
 
           // Update transaction with credit addition failure
           await transactionDoc.ref.update({
-            "paymentDetails.order_status": "PAYMENT_COMPLETED_CREDIT_FAILED",
+            status: "PAYMENT_COMPLETED_CREDIT_FAILED",
             errorMessage: addCreditsResult.message,
             processingCredits: false, // Clear processing flag on failure
             processingError: addCreditsResult.message,
@@ -329,7 +321,7 @@ export async function POST(req: NextRequest) {
 
         // Update transaction to completed status
         await transactionDoc.ref.update({
-          "paymentDetails.order_status": "COMPLETED",
+          status: "COMPLETED",
           creditsAdded: creditAmount,
           creditsAddedAt: new Date(),
           updatedAt: new Date(),
@@ -359,7 +351,7 @@ export async function POST(req: NextRequest) {
               creditsError instanceof Error
                 ? creditsError.message
                 : String(creditsError),
-            "paymentDetails.order_status": "PAYMENT_COMPLETED_CREDIT_ERROR", // Consistent error status
+            status: "PAYMENT_COMPLETED_CREDIT_ERROR", // Consistent error status
             updatedAt: new Date(),
           });
         } catch (clearError) {
@@ -387,7 +379,7 @@ export async function POST(req: NextRequest) {
     ) {
       // Only deduct credits if they were already added (transaction is COMPLETED)
       if (
-        transactionData.paymentDetails.order_status === "COMPLETED" &&
+        transactionData.status === "COMPLETED" &&
         transactionData.creditsAdded
       ) {
         console.log(
@@ -399,7 +391,7 @@ export async function POST(req: NextRequest) {
           await transactionDoc.ref.update({
             processingRefund: true,
             processingRefundStartedAt: new Date(),
-            "paymentDetails.order_status": "PROCESSING_REFUND", // Transitional status
+            status: "PROCESSING_REFUND", // Transitional status
           });
         } catch (lockError) {
           console.error(
@@ -425,7 +417,7 @@ export async function POST(req: NextRequest) {
 
             // Update transaction with deduction failure
             await transactionDoc.ref.update({
-              "paymentDetails.order_status": "REFUND_CREDIT_DEDUCTION_FAILED",
+              status: "REFUND_CREDIT_DEDUCTION_FAILED",
               refundErrorMessage: deductResult.message,
               processingRefund: false,
               updatedAt: new Date(),
@@ -442,7 +434,7 @@ export async function POST(req: NextRequest) {
 
           // Update transaction status
           await transactionDoc.ref.update({
-            "paymentDetails.order_status": `${data.data.payment?.payment_status}_PROCESSED`,
+            status: `${data.data.payment?.payment_status}_PROCESSED`,
             creditsDeducted: creditsToDeduct,
             creditsDeductedAt: new Date(),
             processingRefund: false,
@@ -475,7 +467,7 @@ export async function POST(req: NextRequest) {
                 deductError instanceof Error
                   ? deductError.message
                   : String(deductError),
-              "paymentDetails.order_status": "REFUND_CREDIT_ERROR",
+              status: "REFUND_CREDIT_ERROR",
               updatedAt: new Date(),
             });
           } catch (clearError) {
@@ -499,20 +491,19 @@ export async function POST(req: NextRequest) {
       } else {
         // Transaction wasn't COMPLETED, so no credits were added
         console.log(
-          `Order ${order_id} status changed to ${data.data.payment?.payment_status}, but no credits were previously added (status: ${transactionData.paymentDetails.order_status})`
+          `Order ${order_id} status changed to ${data.data.payment?.payment_status}, but no credits were previously added (status: ${transactionData.status})`
         );
 
         // Update status to reflect the payment failure
         await transactionDoc.ref.update({
-          "paymentDetails.order_status":
-            data.data.payment?.payment_status || "FAILED",
+          status: data.data.payment?.payment_status || "FAILED",
           updatedAt: new Date(),
         });
 
         return NextResponse.json(
           {
             message: `Payment ${data.data.payment?.payment_status}, no credits were previously added`,
-            currentStatus: transactionData.paymentDetails.order_status,
+            currentStatus: transactionData.status,
           },
           { status: 200 }
         );
@@ -524,7 +515,7 @@ export async function POST(req: NextRequest) {
       {
         message: `Webhook received, order status: ${order_status}`,
         orderId: order_id,
-        currentStatus: transactionData.paymentDetails.order_status,
+        currentStatus: transactionData.status,
         newStatus: order_status,
       },
       { status: 200 }
