@@ -14,6 +14,7 @@ export function middleware(request: NextRequest) {
     "/contact",
     "/sign-in",
     "/sign-up",
+    "/api/payments/cashfree/webhook",
   ];
   const isPublicPath = publicPaths.some((publicPath) => path === publicPath);
 
