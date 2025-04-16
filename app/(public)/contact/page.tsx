@@ -1,25 +1,30 @@
 import Link from "next/link";
 import React from "react";
+import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/actions/auth.action";
+import ClientTicketWrapper from "@/components/ClientTicketWrapper";
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const user = await getCurrentUser();
+
   return (
     <div className="container mx-auto py-10 px-4 flex flex-col max-w-6xl">
       <header className="flex items-center justify-between flex-wrap gap-4 pb-6 border-b border-gray-800 mb-10">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
-          Contact Us
+          Support Tickets
         </h1>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+        <div className="space-y-6 md:col-span-1">
           <div>
             <h2 className="text-2xl font-semibold text-white mb-4">
-              Get in Touch
+              Get Support
             </h2>
             <p className="text-gray-300 leading-relaxed">
-              We're here to help with any questions you have about Prep Pilot.
-              Fill out the form or reach out via email, and our team will get
-              back to you as soon as possible.
+              We&apos;re here to help with any questions you have about Prep
+              Pilot. Create a ticket and our team will get back to you as soon
+              as possible.
             </p>
           </div>
 
@@ -40,10 +45,10 @@ export default function ContactPage() {
                 <div>
                   <h3 className="text-lg font-medium text-white">Email</h3>
                   <a
-                    href="mailto:support@prep-pilot.com"
+                    href="mailto:support@preppilotai.com"
                     className="text-blue-400 hover:text-blue-300 transition-colors"
                   >
-                    support@prep-pilot.com
+                    support@preppilotai.com
                   </a>
                 </div>
               </div>
@@ -65,9 +70,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white">Location</h3>
-                  <p className="text-gray-400">
-                    India
-                  </p>
+                  <p className="text-gray-400">India</p>
                 </div>
               </div>
 
@@ -88,7 +91,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white">Phone</h3>
-                  <p className="text-gray-400">+91 7474747474</p>
+                  <p className="text-gray-400">+91 7479592206</p>
                 </div>
               </div>
             </div>
@@ -121,81 +124,34 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 hover:shadow-purple-900/10">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-white mb-6">
-              Send Us a Message
-            </h2>
-            <form className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-300 mb-1"
+        <div className="md:col-span-2">
+          {user ? (
+            <ClientTicketWrapper userData={JSON.stringify(user)} />
+          ) : (
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 p-8 text-center">
+              <h2 className="text-xl font-semibold text-white mb-4">
+                Sign In Required
+              </h2>
+              <p className="text-gray-300 mb-6">
+                Please sign in to create and manage support tickets.
+              </p>
+              <div className="flex justify-center space-x-4">
+                <Link href="/sign-in">
+                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/sign-up">
+                  <Button
+                    variant="outline"
+                    className="border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
                   >
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-300 mb-1"
-                  >
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                    placeholder="Your email"
-                  />
-                </div>
+                    Sign Up
+                  </Button>
+                </Link>
               </div>
-
-              <div>
-                <label
-                  htmlFor="subject"
-                  className="block text-sm font-medium text-gray-300 mb-1"
-                >
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  id="subject"
-                  className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
-                  placeholder="Subject of your message"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-medium text-gray-300 mb-1"
-                >
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  rows={5}
-                  className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white resize-none"
-                  placeholder="Your message"
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-md transition-colors"
-              >
-                Send Message
-              </button>
-            </form>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -28,7 +28,7 @@ export async function setSessionCookie(idToken: string) {
 }
 
 export async function signUp(params: SignUpParams) {
-  const { uid, name, email } = params;
+  const { uid, name, email, photoURL } = params;
   const cookieStore = await cookies();
   const referralCode = cookieStore.get("referralCode")?.value;
 
@@ -132,15 +132,19 @@ export async function signUp(params: SignUpParams) {
     credits = parseFloat(credits.toFixed(2));
 
     // save user to db
-    await db.collection("users").doc(uid).set({
-      name,
-      email,
-      credits,
-      referralCode: newReferralCode,
-      referredBy,
-      referralCount: 0,
-      createdAt: new Date().toISOString(),
-    });
+    await db
+      .collection("users")
+      .doc(uid)
+      .set({
+        name,
+        email,
+        credits,
+        referralCode: newReferralCode,
+        referredBy,
+        referralCount: 0,
+        photoURL: photoURL || null,
+        createdAt: new Date().toISOString(),
+      });
 
     // Record initial credits as transaction
     await db.collection("creditTransactions").add({
@@ -190,7 +194,7 @@ export async function signUp(params: SignUpParams) {
 }
 
 export async function signIn(params: SignInParams) {
-  const { email, idToken } = params;
+  const { email, idToken, displayName, photoURL } = params;
 
   try {
     const userRecord = await auth.getUserByEmail(email);
@@ -200,7 +204,38 @@ export async function signIn(params: SignInParams) {
         message: "User does not exist. Create an account.",
       };
 
+    // Update user profile information if it has changed
+    if (displayName || photoURL !== undefined) {
+      const userDoc = await db.collection("users").doc(userRecord.uid).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        if (userData) {
+          const updates: Record<string, string | null> = {};
+
+          // Update name if provided and different
+          if (displayName && displayName !== userData.name) {
+            updates.name = displayName;
+          }
+
+          // Update photoURL if provided or if currently null/undefined
+          if (photoURL !== undefined && photoURL !== userData.photoURL) {
+            updates.photoURL = photoURL;
+          }
+
+          // Only update if we have changes
+          if (Object.keys(updates).length > 0) {
+            await db.collection("users").doc(userRecord.uid).update(updates);
+          }
+        }
+      }
+    }
+
     await setSessionCookie(idToken);
+
+    return {
+      success: true,
+      message: "Signed in successfully",
+    };
   } catch (error: unknown) {
     console.log("Sign in error:", error);
 
@@ -235,8 +270,9 @@ export async function getCurrentUser(): Promise<User | null> {
       .get();
     if (!userRecord.exists) return null;
 
+    const userData = userRecord.data();
     return {
-      ...userRecord.data(),
+      ...userData,
       id: userRecord.id,
     } as User;
   } catch (error) {

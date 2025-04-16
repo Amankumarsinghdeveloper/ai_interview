@@ -11,6 +11,9 @@ import { interviewer } from "@/constants";
 import { createFeedback } from "@/lib/actions/general.action";
 import { hasEnoughCredits, deductCredits } from "@/lib/actions/credit.action";
 
+// Add CSS animation keyframes for loading bar
+import "./agent.css";
+
 enum CallStatus {
   INACTIVE = "INACTIVE",
   CONNECTING = "CONNECTING",
@@ -30,6 +33,7 @@ const Agent = ({
   feedbackId,
   type,
   questions,
+  userPhoto,
 }: AgentProps) => {
   const router = useRouter();
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
@@ -217,7 +221,7 @@ const Agent = ({
       } else {
         console.log("Error saving feedback");
         toast.error("Failed to generate feedback");
-        router.push("/");
+        router.push("/dashboard");
       }
     };
 
@@ -263,7 +267,7 @@ const Agent = ({
       }
 
       if (type === "generate") {
-        router.push("/");
+        router.push("/dashboard");
       } else {
         await handleGenerateFeedback(messages);
       }
@@ -565,138 +569,399 @@ const Agent = ({
         } else {
           console.error("Error saving feedback");
           toast.error("Failed to generate feedback");
-          router.push("/");
+          router.push("/dashboard");
         }
       } catch (error) {
         console.error("Error generating feedback:", error);
         toast.error("Failed to generate feedback");
-        router.push("/");
+        router.push("/dashboard");
       }
     } else if (type === "generate") {
-      router.push("/");
+      router.push("/dashboard");
     }
   };
 
   return (
     <>
-      <div className="call-view">
-        {/* AI Interviewer Card */}
-        <div className="card-interviewer">
-          <div className="avatar">
-            <Image
-              src="/ai-avatar.png"
-              alt="profile-image"
-              width={65}
-              height={54}
-              className="object-cover"
-            />
-            {isSpeaking && <span className="animate-speak" />}
-          </div>
-          <h3>AI Interviewer</h3>
+      {/* Main content container with fixed minimum height to prevent shifting */}
+      <div className="min-h-[500px] flex flex-col justify-between mt-4">
+        <div>
+          {/* Show user cards only when call is active or after messages start appearing */}
+          {(callStatus === CallStatus.ACTIVE ||
+            (messages.length > 0 &&
+              !(
+                callStatus === CallStatus.FINISHED &&
+                feedbackGenerated &&
+                type !== "generate"
+              ))) && (
+            <div className="call-view">
+              {/* AI Interviewer Card */}
+              <div className="card-interviewer">
+                <div className="avatar">
+                  <Image
+                    src="/ai-face.svg"
+                    alt="profile-image"
+                    width={65}
+                    height={54}
+                    className="object-cover"
+                  />
+                  {isSpeaking && <span className="animate-speak" />}
+                </div>
+                <h3>AI Interviewer</h3>
+              </div>
+
+              {/* User Profile Card */}
+              <div className="card-border">
+                <div className="card-content">
+                  <Image
+                    src={userPhoto || "/user-avatar.png"}
+                    alt="profile-image"
+                    width={539}
+                    height={539}
+                    className="rounded-full object-cover size-[120px]"
+                  />
+                  <h3>{userName}</h3>
+                  {availableCredits > 0 && (
+                    <p className="text-sm text-gray-400">
+                      {availableCredits.toFixed(2)} credits available
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show message transcript only when not in feedback generation mode */}
+          {messages.length > 0 &&
+            !(
+              callStatus === CallStatus.FINISHED &&
+              feedbackGenerated &&
+              type !== "generate"
+            ) && (
+              <div className="mt-4 mb-8 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 p-6">
+                <div className="text-center">
+                  <p
+                    key={lastMessage}
+                    className={cn(
+                      "text-lg text-white transition-opacity duration-500 opacity-0",
+                      "animate-fadeIn opacity-100"
+                    )}
+                  >
+                    {lastMessage}
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {/* Show instruction card when the call is inactive and not finished */}
+          {callStatus === CallStatus.INACTIVE && (
+            <div className="max-w-3xl mx-auto mb-8 px-4">
+              <div className="text-center mb-6">
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                  Ready for your AI Interview
+                </h1>
+                <p className="mt-2 text-gray-300">
+                  Follow these tips for the best experience
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="bg-gradient-to-br from-blue-900/5 to-gray-900/90 backdrop-blur-sm rounded-xl p-4 hover:shadow-lg transition-all duration-300">
+                  <div className="flex items-center mb-2 text-blue-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-2"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-medium">AI Interviewer</span>
+                  </div>
+                  <p className="text-gray-300 ml-7">
+                    This is an interview conducted by our advanced AI
+                    interviewer.
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-900/5 to-gray-900/90 backdrop-blur-sm rounded-xl p-4 hover:shadow-lg transition-all duration-300">
+                  <div className="flex items-center mb-2 text-purple-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-2"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-medium">Microphone Check</span>
+                  </div>
+                  <p className="text-gray-300 ml-7">
+                    Please ensure your microphone is working properly before
+                    starting.
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-900/5 to-gray-900/90 backdrop-blur-sm rounded-xl p-4 hover:shadow-lg transition-all duration-300">
+                  <div className="flex items-center mb-2 text-green-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-2"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-medium">Speak Clearly</span>
+                  </div>
+                  <p className="text-gray-300 ml-7">
+                    Answer questions as naturally as you would in a real
+                    interview.
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-red-900/5 to-gray-900/90 backdrop-blur-sm rounded-xl p-4 hover:shadow-lg transition-all duration-300">
+                  <div className="flex items-center mb-2 text-red-400">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-2"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="font-medium">Quiet Environment</span>
+                  </div>
+                  <p className="text-gray-300 ml-7">
+                    Find a quiet place free from distractions for the best
+                    experience.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 bg-gradient-to-r from-yellow-500/5 to-gray-800/70 rounded-xl p-4 text-center">
+                <p className="text-gray-200">
+                  When finished, click{" "}
+                  <span className="font-semibold text-yellow-400">
+                    End Interview
+                  </span>{" "}
+                  to receive your personalized feedback
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Modern loading UI for interview preparation */}
+          {callStatus === CallStatus.CONNECTING && (
+            <div className="max-w-3xl mx-auto mb-8 px-4 flex items-center justify-center min-h-[300px]">
+              <div className="w-full bg-gradient-to-br from-blue-900/20 to-indigo-900/10 backdrop-blur-sm rounded-2xl p-8 border border-blue-500/20 shadow-lg">
+                <div className="flex flex-col items-center justify-center text-center">
+                  {/* Animated icon */}
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-blue-500/30 blur-xl rounded-full animate-pulse"></div>
+                    <div className="relative size-20 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-10 w-10 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Loading indicator */}
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    Preparing your interview...
+                  </h2>
+                  <p className="text-blue-200 mb-5">
+                    Setting up your AI interviewer for the best experience
+                  </p>
+
+                  {/* Progress bar */}
+                  <div className="w-full max-w-md h-2 bg-gray-700 rounded-full overflow-hidden mb-4">
+                    <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-loadingBar"></div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 justify-center mt-2">
+                    <span className="px-3 py-1 bg-blue-900/40 text-blue-200 text-sm rounded-full">
+                      Configuring AI
+                    </span>
+                    <span className="px-3 py-1 bg-indigo-900/40 text-indigo-200 text-sm rounded-full">
+                      Setting up voice recognition
+                    </span>
+                    <span className="px-3 py-1 bg-purple-900/40 text-purple-200 text-sm rounded-full">
+                      Preparing questions
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modern UI for generating feedback report - only show when needed */}
+          {callStatus === CallStatus.FINISHED &&
+            feedbackGenerated &&
+            type !== "generate" && (
+              <div className="max-w-3xl mx-auto px-4 flex items-center justify-center min-h-[350px]">
+                <div className="w-full bg-gradient-to-br from-purple-900/20 to-pink-900/10 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/20 shadow-lg">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    {/* Animated icon */}
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-purple-500/30 blur-xl rounded-full animate-pulse"></div>
+                      <div className="relative size-20 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-600 rounded-full">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-10 w-10 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Loading indicator */}
+                    <h2 className="text-2xl font-bold text-white mb-2">
+                      Generating your feedback report...
+                    </h2>
+                    <p className="text-purple-200 mb-5">
+                      Analyzing your responses and preparing personalized
+                      insights
+                    </p>
+
+                    {/* Progress bar */}
+                    <div className="w-full max-w-md h-2 bg-gray-700 rounded-full overflow-hidden mb-4">
+                      <div className="h-full bg-gradient-to-r from-purple-500 to-pink-600 rounded-full animate-loadingBar"></div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 justify-center mt-2">
+                      <span className="px-3 py-1 bg-purple-900/40 text-purple-200 text-sm rounded-full">
+                        Analyzing responses
+                      </span>
+                      <span className="px-3 py-1 bg-pink-900/40 text-pink-200 text-sm rounded-full">
+                        Identifying strengths
+                      </span>
+                      <span className="px-3 py-1 bg-fuchsia-900/40 text-fuchsia-200 text-sm rounded-full">
+                        Creating recommendations
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
         </div>
 
-        {/* User Profile Card */}
-        <div className="card-border">
-          <div className="card-content">
-            <Image
-              src="/user-avatar.png"
-              alt="profile-image"
-              width={539}
-              height={539}
-              className="rounded-full object-cover size-[120px]"
-            />
-            <h3>{userName}</h3>
-            {availableCredits > 0 && (
-              <p className="text-sm text-gray-400">
-                {availableCredits.toFixed(2)} credits available
+        <div className="mt-auto">
+          {/* Button container with fixed position at bottom */}
+          <div className="w-full flex justify-center my-8">
+            {callStatus !== "ACTIVE" ? (
+              <button
+                className={`relative flex items-center justify-center gap-3 px-8 py-4 rounded-full font-medium text-white shadow-lg transition-all duration-300 cursor-pointer ${
+                  callStatus !== "CONNECTING" &&
+                  !isChecking &&
+                  !feedbackGenerated
+                    ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:shadow-blue-900/30"
+                    : "bg-gray-700 cursor-wait"
+                }`}
+                onClick={() => handleCall()}
+                disabled={
+                  isChecking || callStatus === "CONNECTING" || feedbackGenerated
+                }
+              >
+                {callStatus !== "CONNECTING" &&
+                  !isChecking &&
+                  !feedbackGenerated && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M1.5 4.5a3 3 0 0 1 3-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 0 1-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 0 0 6.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 0 1 1.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 0 1-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+
+                {(callStatus === "CONNECTING" ||
+                  isChecking ||
+                  feedbackGenerated) && (
+                  <div className="flex items-center justify-center">
+                    <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
+                  </div>
+                )}
+
+                <span className="relative">
+                  {callStatus === "INACTIVE" || callStatus === "FINISHED"
+                    ? isChecking
+                      ? "Checking credits..."
+                      : feedbackGenerated
+                      ? "Processing..."
+                      : "Start Interview"
+                    : "Connecting..."}
+                </span>
+              </button>
+            ) : (
+              <button
+                className="flex items-center justify-center gap-3 px-8 py-4 rounded-full font-medium text-white bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 shadow-lg hover:shadow-red-900/30 transition-all duration-300"
+                onClick={() => handleDisconnect()}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path d="M10.5 1.875a1.125 1.125 0 0 1 2.25 0v8.219c.517.162 1.02.382 1.5.659V3.375a1.125 1.125 0 0 1 2.25 0v10.937a1.125 1.125 0 0 1-2.25 0V6.75c-.48-.277-.983-.497-1.5-.659v10.784a1.125 1.125 0 0 1-2.25 0V6c-.584.084-1.157.223-1.5.413v9.462a1.125 1.125 0 0 1-2.25 0V7.875c0-1.248 1.008-2.256 2.256-2.256.693 0 1.337.334 1.744.895.19-.087.392-.158.6-.213Z" />
+                  <path d="M21 12a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1 0-1.5h15.5A.75.75 0 0 1 21 12Z" />
+                </svg>
+                End Interview
+              </button>
+            )}
+          </div>
+
+          {/* Warning message with consistent placement - only show during active interview */}
+          <div className="w-full flex justify-center mb-4">
+            {callStatus === CallStatus.ACTIVE && type !== "generate" && (
+              <p className="text-center text-xl bg-red-500/10 px-4 py-2 rounded-lg">
+                After Interview End the Interview
               </p>
             )}
           </div>
         </div>
       </div>
-
-      {messages.length > 0 && (
-        <div className="mb-8 bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 p-6">
-          <div className="text-center">
-            <p
-              key={lastMessage}
-              className={cn(
-                "text-lg text-white transition-opacity duration-500 opacity-0",
-                "animate-fadeIn opacity-100"
-              )}
-            >
-              {lastMessage}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="w-full flex justify-center mt-8">
-        {callStatus !== "ACTIVE" ? (
-          <button
-            className={`relative flex items-center justify-center gap-3 px-8 py-4 rounded-full font-medium text-white shadow-lg transition-all duration-300 cursor-pointer ${
-              callStatus !== "CONNECTING" && !isChecking
-                ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:shadow-blue-900/30"
-                : "bg-gray-700 cursor-wait"
-            }`}
-            onClick={() => handleCall()}
-            disabled={isChecking || callStatus === "CONNECTING"}
-          >
-            {callStatus !== "CONNECTING" && !isChecking && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="w-5 h-5"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M1.5 4.5a3 3 0 0 1 3-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 0 1-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 0 0 6.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 0 1 1.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 0 1-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            )}
-
-            {(callStatus === "CONNECTING" || isChecking) && (
-              <div className="flex items-center justify-center">
-                <div className="h-5 w-5 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
-              </div>
-            )}
-
-            <span className="relative">
-              {callStatus === "INACTIVE" || callStatus === "FINISHED"
-                ? isChecking
-                  ? "Checking credits..."
-                  : "Start Interview"
-                : "Connecting..."}
-            </span>
-          </button>
-        ) : (
-          <button
-            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full font-medium text-white bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 shadow-lg hover:shadow-red-900/30 transition-all duration-300"
-            onClick={() => handleDisconnect()}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-5 h-5"
-            >
-              <path d="M10.5 1.875a1.125 1.125 0 0 1 2.25 0v8.219c.517.162 1.02.382 1.5.659V3.375a1.125 1.125 0 0 1 2.25 0v10.937a1.125 1.125 0 0 1-2.25 0V6.75c-.48-.277-.983-.497-1.5-.659v10.784a1.125 1.125 0 0 1-2.25 0V6c-.584.084-1.157.223-1.5.413v9.462a1.125 1.125 0 0 1-2.25 0V7.875c0-1.248 1.008-2.256 2.256-2.256.693 0 1.337.334 1.744.895.19-.087.392-.158.6-.213Z" />
-              <path d="M21 12a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1 0-1.5h15.5A.75.75 0 0 1 21 12Z" />
-            </svg>
-            End Interview
-          </button>
-        )}
-      </div>
-
-      {callStatus === "ACTIVE" && type !== "generate" && (
-        <div className="w-full flex justify-center mt-4">
-          <p className="text-center text-xl bg-red-500/10 px-4 py-2 rounded-lg">
-            After Interview End the Interview
-          </p>
-        </div>
-      )}
     </>
   );
 };

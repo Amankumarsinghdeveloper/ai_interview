@@ -36,9 +36,14 @@ const Page = async () => {
         </div>
       </header>
 
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 hover:shadow-purple-900/10 hover:shadow-xl p-6">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 hover:shadow-purple-900/10 hover:shadow-xl p-6 mt-4">
         <div className="max-w-3xl mx-auto">
-          <Agent userName={user.name} userId={user.id} type="generate" />
+          <Agent
+            userName={user.name}
+            userId={user.id}
+            type="generate"
+            userPhoto={user.photoURL}
+          />
         </div>
       </div>
     </div>

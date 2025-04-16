@@ -1,113 +1,122 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
-  className?: string;
 }
 
 export function Pagination({
   currentPage,
   totalPages,
   onPageChange,
-  className = "",
 }: PaginationProps) {
-  const canGoPrevious = currentPage > 1;
-  const canGoNext = currentPage < totalPages;
+  const renderPageButtons = () => {
+    const buttons = [];
 
-  // Generate page numbers to show (always show first, last, and pages around current)
-  const getPageNumbers = () => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    // Always show first page
+    buttons.push(
+      <Button
+        key="first"
+        variant={currentPage === 1 ? "default" : "outline"}
+        size="sm"
+        onClick={() => onPageChange(1)}
+        className={
+          currentPage === 1
+            ? "bg-blue-600 hover:bg-blue-700"
+            : "bg-gray-800 border-gray-700 text-gray-300"
+        }
+      >
+        1
+      </Button>
+    );
+
+    // Calculate range of pages to show
+    const startPage = Math.max(2, currentPage - 1);
+    const endPage = Math.min(totalPages - 1, currentPage + 1);
+
+    // Add ellipsis if needed
+    if (startPage > 2) {
+      buttons.push(
+        <span key="ellipsis-start" className="px-2 text-gray-500">
+          ...
+        </span>
+      );
     }
 
-    const pages = [1];
-
-    // Calculate start and end of the middle section
-    let startMiddle = Math.max(2, currentPage - 1);
-    let endMiddle = Math.min(totalPages - 1, currentPage + 1);
-
-    // Ensure we always show 3 pages in the middle section
-    if (startMiddle > totalPages - 4) {
-      startMiddle = totalPages - 4;
-      endMiddle = totalPages - 1;
-    } else if (endMiddle < 4) {
-      startMiddle = 2;
-      endMiddle = 4;
+    // Add middle pages
+    for (let i = startPage; i <= endPage; i++) {
+      buttons.push(
+        <Button
+          key={i}
+          variant={currentPage === i ? "default" : "outline"}
+          size="sm"
+          onClick={() => onPageChange(i)}
+          className={
+            currentPage === i
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-800 border-gray-700 text-gray-300"
+          }
+        >
+          {i}
+        </Button>
+      );
     }
 
-    // Add ellipsis before middle section if needed
-    if (startMiddle > 2) {
-      pages.push(-1); // -1 represents ellipsis
+    // Add ellipsis if needed
+    if (endPage < totalPages - 1) {
+      buttons.push(
+        <span key="ellipsis-end" className="px-2 text-gray-500">
+          ...
+        </span>
+      );
     }
 
-    // Add middle section
-    for (let i = startMiddle; i <= endMiddle; i++) {
-      pages.push(i);
+    // Always show last page if there's more than one page
+    if (totalPages > 1) {
+      buttons.push(
+        <Button
+          key="last"
+          variant={currentPage === totalPages ? "default" : "outline"}
+          size="sm"
+          onClick={() => onPageChange(totalPages)}
+          className={
+            currentPage === totalPages
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-800 border-gray-700 text-gray-300"
+          }
+        >
+          {totalPages}
+        </Button>
+      );
     }
 
-    // Add ellipsis after middle section if needed
-    if (endMiddle < totalPages - 1) {
-      pages.push(-2); // -2 represents ellipsis
-    }
-
-    // Add last page
-    pages.push(totalPages);
-
-    return pages;
+    return buttons;
   };
 
-  if (totalPages <= 1) return null;
-
   return (
-    <div className={`flex items-center justify-center space-x-1 ${className}`}>
+    <div className="flex items-center justify-center space-x-2">
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={!canGoPrevious}
-        className="h-8 w-8 p-0 border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-50"
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1}
+        className="bg-gray-800 border-gray-700 text-gray-300"
       >
-        <ChevronLeft className="h-4 w-4" />
+        Previous
       </Button>
 
-      {getPageNumbers().map((pageNum) => {
-        // Handle ellipsis
-        if (pageNum < 0) {
-          return (
-            <span key={`ellipsis-${pageNum}`} className="px-2 text-gray-400">
-              ...
-            </span>
-          );
-        }
-
-        return (
-          <Button
-            key={`page-${pageNum}`}
-            variant={pageNum === currentPage ? "default" : "outline"}
-            size="sm"
-            onClick={() => onPageChange(pageNum)}
-            className={`h-8 w-8 p-0 ${
-              pageNum === currentPage
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "border-gray-700 text-gray-400 hover:bg-gray-800"
-            }`}
-          >
-            {pageNum}
-          </Button>
-        );
-      })}
+      <div className="flex items-center space-x-1">{renderPageButtons()}</div>
 
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={!canGoNext}
-        className="h-8 w-8 p-0 border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-50"
+        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        disabled={currentPage === totalPages}
+        className="bg-gray-800 border-gray-700 text-gray-300"
       >
-        <ChevronRight className="h-4 w-4" />
+        Next
       </Button>
     </div>
   );

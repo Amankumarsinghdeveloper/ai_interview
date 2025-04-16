@@ -19,7 +19,7 @@ export default async function RootLayout({
     <div className="min-h-screen">
       <header className="border-b border-light-800/10 backdrop-blur-sm sticky top-0 z-50 bg-dark-100/80">
         <div className="container max-w-7xl mx-auto px-5 sm:px-10 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <Image
               src="/logo.svg"
               alt="Prep Pilot logo"

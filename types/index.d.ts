@@ -40,6 +40,7 @@ interface User {
   referralCode?: string;
   referredBy?: string;
   referralCount?: number;
+  photoURL?: string;
 }
 
 interface InterviewCardProps {
@@ -58,6 +59,7 @@ interface AgentProps {
   feedbackId?: string;
   type: "generate" | "interview";
   questions?: string[];
+  userPhoto?: string;
 }
 
 interface RouteParams {
@@ -78,6 +80,8 @@ interface GetLatestInterviewsParams {
 interface SignInParams {
   email: string;
   idToken: string;
+  displayName?: string;
+  photoURL?: string;
 }
 
 interface SignUpParams {
@@ -85,6 +89,7 @@ interface SignUpParams {
   name: string;
   email: string;
   password: string;
+  photoURL?: string;
 }
 
 type FormType = "sign-in" | "sign-up";

@@ -1,5 +1,5 @@
 import { interviewCovers, mappings } from "@/constants";
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 // This utility function merges tailwind classes and handles conflicts

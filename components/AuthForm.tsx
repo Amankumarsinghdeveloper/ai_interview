@@ -40,12 +40,15 @@ const AuthForm = ({ type }: { type: FormType }) => {
         name: user.displayName || user.email.split("@")[0],
         email: user.email,
         password: "", // Not needed for Google auth
+        photoURL: user.photoURL || undefined,
       });
 
       // Sign in the user with our app
       await signIn({
         email: user.email,
         idToken,
+        displayName: user.displayName || user.email.split("@")[0],
+        photoURL: user.photoURL || undefined,
       });
 
       toast.success(

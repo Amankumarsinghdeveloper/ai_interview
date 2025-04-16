@@ -26,6 +26,7 @@ export async function getUserByEmail(email: string) {
       phone: userData.phone || "",
       referralCode: userData.referralCode,
       referralCount: userData.referralCount,
+      photoURL: userData.photoURL || "",
       createdAt: userData.createdAt,
     };
   } catch (error) {
@@ -57,6 +58,7 @@ export async function getUserById(userId: string) {
       phone: userData?.phone || "",
       referralCode: userData?.referralCode,
       referralCount: userData?.referralCount,
+      photoURL: userData?.photoURL || "",
       createdAt: userData?.createdAt,
     };
   } catch (error) {

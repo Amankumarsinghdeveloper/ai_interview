@@ -70,15 +70,19 @@ const InterviewDetails = async ({ params }: RouteParams) => {
           </div>
         </div>
       </header>
-
-      <Agent
-        userName={user.name}
-        userId={user.id}
-        interviewId={id}
-        type="interview"
-        questions={interview.questions}
-        feedbackId={feedback?.id}
-      />
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 shadow-xl rounded-lg overflow-hidden border border-gray-800/50 transition-all duration-300 hover:shadow-purple-900/10 hover:shadow-xl p-6 mt-4">
+        <div className="max-w-3xl mx-auto">
+          <Agent
+            userName={user.name}
+            userId={user.id}
+            interviewId={id}
+            type="interview"
+            questions={interview.questions}
+            feedbackId={feedback?.id}
+            userPhoto={user.photoURL}
+          />
+        </div>
+      </div>
     </>
   );
 };

@@ -195,6 +195,7 @@ export async function POST(req: NextRequest) {
     // Map payment status to our internal status
     let order_status: string;
     if (data.data.payment?.payment_status === "SUCCESS") {
+      // Only set as PAID initially, will be updated to COMPLETED after adding credits
       order_status = "PAID";
     } else if (data.data.payment?.payment_status) {
       order_status = data.data.payment.payment_status;
@@ -205,19 +206,13 @@ export async function POST(req: NextRequest) {
     // Transaction record handling
     try {
       if (transactionSnapshot.empty) {
-        // Create a new transaction record if it doesn't exist
-        await db.collection("transactions").add({
-          orderId: order_id,
-          status: order_status,
-          amount: order_amount,
-          webhookData: data,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          source: "webhook",
-        });
-
+        // Don't create new transactions from webhooks, only update existing ones
         console.log(
-          `Transaction record created from webhook for order ${order_id}`
+          `No existing transaction found for order ${order_id}, ignoring webhook`
+        );
+        return NextResponse.json(
+          { message: `No existing transaction found for order ${order_id}` },
+          { status: 400 }
         );
       } else {
         // Update existing transaction
@@ -256,6 +251,21 @@ export async function POST(req: NextRequest) {
 
     // If payment is successful, add credits
     if (data.data.payment?.payment_status === "SUCCESS") {
+      // Only proceed if the previous status was PENDING_PAYMENT
+      if (transactionData?.status !== "PENDING_PAYMENT") {
+        console.log(
+          `Transaction status is not PENDING_PAYMENT (current: ${transactionData?.status}), not adding credits`
+        );
+        return NextResponse.json(
+          {
+            message:
+              "Webhook received but no credits added as transaction was not in PENDING_PAYMENT state",
+            currentStatus: transactionData?.status,
+          },
+          { status: 200 }
+        );
+      }
+
       // Extract user ID and credit amount
       if (!customer_id) {
         console.error("Missing customer_id in webhook and transaction");
@@ -265,39 +275,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Check if this webhook has already been processed by looking at transaction status
-      // This handles the idempotency issue where multiple success webhooks might be sent
-      if (
-        transactionData &&
-        (transactionData.status === "COMPLETED" ||
-          transactionData.creditsAdded ||
-          transactionData.creditsAddedAt ||
-          transactionData.processingCredits === true)
-      ) {
-        // Credits were already added or are being processed, avoid duplicate
-        console.log(
-          `Credits already added or being processed for order ${order_id}, skipping (transaction status: ${transactionData.status})`
-        );
-        return NextResponse.json(
-          {
-            message: "Credits already added or being processed",
-            orderStatus: transactionData.status,
-            creditsAdded: transactionData.creditsAdded || 0,
-            processingState: transactionData.processingCredits
-              ? "in_progress"
-              : "completed",
-          },
-          { status: 200 }
-        );
-      }
-
       // Mark this transaction as being processed to prevent concurrent processing
-      // This acts as a simple lock mechanism to prevent race conditions
       try {
         if (transactionDoc) {
           await transactionDoc.ref.update({
             processingCredits: true,
             processingStartedAt: new Date(),
+            status: "PROCESSING_PAYMENT", // Transitional status
           });
           console.log(`Marked order ${order_id} as processing`);
         }
@@ -396,7 +380,7 @@ export async function POST(req: NextRequest) {
                 creditsError instanceof Error
                   ? creditsError.message
                   : String(creditsError),
-              status: "PAYMENT_COMPLETED_CREDIT_ERROR",
+              status: "PAYMENT_COMPLETED_CREDIT_ERROR", // Consistent error status
               updatedAt: new Date(),
             });
           }
@@ -453,6 +437,7 @@ export async function POST(req: NextRequest) {
             await transactionDoc.ref.update({
               processingCredits: false,
               processingError: String(updateError),
+              status: "PAYMENT_COMPLETED_CREDIT_FAILED", // Important: Don't leave in PROCESSING_PAYMENT state
             });
           }
         } catch (clearError) {
@@ -473,7 +458,12 @@ export async function POST(req: NextRequest) {
 
     // For non-success statuses, just acknowledge receipt
     return NextResponse.json(
-      { message: `Webhook received, order status: ${order_status}` },
+      {
+        message: `Webhook received, order status: ${order_status}`,
+        orderId: order_id,
+        currentStatus: transactionData?.status,
+        newStatus: order_status,
+      },
       { status: 200 }
     );
   } catch (error) {
