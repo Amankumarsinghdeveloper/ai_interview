@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
         // Create a new transaction record if it doesn't exist
         await db.collection("transactions").add({
           orderId: order_id,
-          status: order_status,
+          status: order_status || "UNKNOWN",
           amount: order_amount,
           webhookData: data,
           createdAt: new Date(),
@@ -280,12 +280,18 @@ export async function POST(req: NextRequest) {
       } else {
         // Update existing transaction
         if (transactionDoc) {
-          await transactionDoc.ref.update({
-            status: order_status,
+          const updateData: Record<string, unknown> = {
             webhookData: data,
             updatedAt: new Date(),
             lastWebhookAt: new Date(),
-          });
+          };
+
+          // Only include status if it's defined
+          if (order_status) {
+            updateData.status = order_status;
+          }
+
+          await transactionDoc.ref.update(updateData);
 
           console.log(`Transaction updated from webhook for order ${order_id}`);
         } else {
