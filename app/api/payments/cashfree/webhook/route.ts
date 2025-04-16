@@ -265,6 +265,50 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Check if this webhook has already been processed by looking at transaction status
+      // This handles the idempotency issue where multiple success webhooks might be sent
+      if (
+        transactionData &&
+        (transactionData.status === "COMPLETED" ||
+          transactionData.creditsAdded ||
+          transactionData.creditsAddedAt ||
+          transactionData.processingCredits === true)
+      ) {
+        // Credits were already added or are being processed, avoid duplicate
+        console.log(
+          `Credits already added or being processed for order ${order_id}, skipping (transaction status: ${transactionData.status})`
+        );
+        return NextResponse.json(
+          {
+            message: "Credits already added or being processed",
+            orderStatus: transactionData.status,
+            creditsAdded: transactionData.creditsAdded || 0,
+            processingState: transactionData.processingCredits
+              ? "in_progress"
+              : "completed",
+          },
+          { status: 200 }
+        );
+      }
+
+      // Mark this transaction as being processed to prevent concurrent processing
+      // This acts as a simple lock mechanism to prevent race conditions
+      try {
+        if (transactionDoc) {
+          await transactionDoc.ref.update({
+            processingCredits: true,
+            processingStartedAt: new Date(),
+          });
+          console.log(`Marked order ${order_id} as processing`);
+        }
+      } catch (lockError) {
+        console.error(
+          `Error setting processing lock for order ${order_id}:`,
+          lockError
+        );
+        // Continue processing but log the error
+      }
+
       // If credit amount is not available, use payment amount as fallback
       if (!credit_amount) {
         if (order_amount) {
@@ -300,20 +344,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Check if credits were already added
-      if (
-        transactionData &&
-        transactionData.status === "COMPLETED" &&
-        transactionData.creditsAdded
-      ) {
-        // Credits were already added, avoid duplicate
-        console.log(`Credits already added for order ${order_id}, skipping`);
-        return NextResponse.json(
-          { message: "Credits already added" },
-          { status: 200 }
-        );
-      }
-
       // Add credits to the user's account
       console.log(
         `Adding ${creditAmount} credits to user ${customer_id} for order ${order_id}`
@@ -336,6 +366,8 @@ export async function POST(req: NextRequest) {
                 snapshot.docs[0].ref.update({
                   status: "PAYMENT_COMPLETED_CREDIT_FAILED",
                   errorMessage: addCreditsResult.message,
+                  processingCredits: false, // Clear processing flag on failure
+                  processingError: addCreditsResult.message,
                   updatedAt: new Date(),
                 });
               }
@@ -354,6 +386,27 @@ export async function POST(req: NextRequest) {
           `Error in addCredits function for order ${order_id}:`,
           creditsError
         );
+
+        // Clear processing flag on exception
+        try {
+          if (transactionDoc) {
+            await transactionDoc.ref.update({
+              processingCredits: false,
+              processingError:
+                creditsError instanceof Error
+                  ? creditsError.message
+                  : String(creditsError),
+              status: "PAYMENT_COMPLETED_CREDIT_ERROR",
+              updatedAt: new Date(),
+            });
+          }
+        } catch (clearError) {
+          console.error(
+            `Failed to clear processing flag for order ${order_id}:`,
+            clearError
+          );
+        }
+
         return NextResponse.json(
           {
             message: "Error adding credits",
@@ -379,6 +432,8 @@ export async function POST(req: NextRequest) {
                 creditsAdded: creditAmount,
                 creditsAddedAt: new Date(),
                 updatedAt: new Date(),
+                processingCredits: false, // Clear processing flag
+                processingCompletedAt: new Date(),
               });
             }
           });
@@ -391,6 +446,22 @@ export async function POST(req: NextRequest) {
           `Error updating transaction to COMPLETED for order ${order_id}:`,
           updateError
         );
+
+        // Try to clear the processing flag even if the update failed
+        try {
+          if (transactionDoc) {
+            await transactionDoc.ref.update({
+              processingCredits: false,
+              processingError: String(updateError),
+            });
+          }
+        } catch (clearError) {
+          console.error(
+            `Failed to clear processing flag for order ${order_id}:`,
+            clearError
+          );
+        }
+
         // Still return success since credits were added
       }
 
