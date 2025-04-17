@@ -30,9 +30,7 @@ const InterviewsContent = ({
   initialAvailableInterviews,
 }: InterviewsContentProps) => {
   const currentInterviews =
-    initialUserInterviews === null
-      ? initialAvailableInterviews
-      : initialUserInterviews;
+    initialTab === "your" ? initialUserInterviews : initialAvailableInterviews;
 
   return (
     <>

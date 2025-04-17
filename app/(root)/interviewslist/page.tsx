@@ -26,21 +26,15 @@ const InterviewsListPage = async ({ searchParams }: SearchParams) => {
   }
 
   // Pre-fetch the initial interview data based on the active tab
-  const initialUserInterviews =
-    tab === "your"
-      ? await getInterviewsByUserIdList(user.id, {
-          limit: 9,
-          searchQuery: query,
-        })
-      : null;
+  const initialUserInterviews = await getInterviewsByUserIdList(user.id, {
+    limit: 9,
+    searchQuery: query,
+  });
 
-  const initialAvailableInterviews =
-    tab === "available"
-      ? await getLatestInterviewsList(user.id, {
-          limit: 9,
-          searchQuery: query,
-        })
-      : null;
+  const initialAvailableInterviews = await getLatestInterviewsList(user.id, {
+    limit: 9,
+    searchQuery: query,
+  });
 
   // Convert to specific type to avoid type issues
   return (

@@ -12,10 +12,11 @@ const InterviewsFilter = () => {
   const activeTab = searchParams.get("tab") || "your";
   const query = searchParams.get("query") || "";
 
+  const [activeTabs, setActiveTabs] = useState(activeTab);
   const [searchQuery, setSearchQuery] = useState(query);
 
   const handleTabChange = (tab: string) => {
-    console.log(tab);
+    setActiveTabs(tab);
     const newUrl = formUrlQuery({
       params: searchParams.toString(),
       key: "tab",
@@ -56,7 +57,7 @@ const InterviewsFilter = () => {
         <button
           onClick={() => handleTabChange("your")}
           className={`tab-button cursor-pointer ${
-            activeTab === "your"
+            activeTabs === "your"
               ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
               : "bg-gray-800 text-gray-400 hover:text-white"
           } px-6 py-3 rounded-l-lg font-medium transition-all duration-200`}
@@ -66,7 +67,7 @@ const InterviewsFilter = () => {
         <button
           onClick={() => handleTabChange("available")}
           className={`tab-button cursor-pointer ${
-            activeTab === "available"
+            activeTabs === "available"
               ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
               : "bg-gray-800 text-gray-400 hover:text-white"
           } px-6 py-3 rounded-r-lg font-medium transition-all duration-200`}
