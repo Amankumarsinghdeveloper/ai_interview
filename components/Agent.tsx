@@ -618,7 +618,9 @@ const Agent = ({
                     alt="profile-image"
                     width={539}
                     height={539}
-                    className="rounded-full object-cover size-[120px]"
+                    className={`rounded-full object-cover size-[120px] ${
+                      userPhoto ? "bg-gray-900" : ""
+                    }`}
                   />
                   <h3>{userName}</h3>
                   {availableCredits > 0 && (

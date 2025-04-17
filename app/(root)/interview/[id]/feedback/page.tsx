@@ -181,7 +181,7 @@ const Feedback = async ({ params }: RouteParams) => {
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
         <Link
-          href="/"
+          href="/dashboard"
           className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-medium text-white shadow-lg transition-all duration-300 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 flex-1 max-w-64"
         >
           <svg
