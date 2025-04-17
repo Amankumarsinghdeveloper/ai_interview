@@ -93,7 +93,7 @@ export async function getFeedbackByInterviewId(
 export async function getLatestInterviews(
   params: GetLatestInterviewsParams
 ): Promise<Interview[] | null> {
-  const { userId, limit = 20 } = params;
+  const { userId, limit = 4 } = params;
 
   const interviews = await db
     .collection("interviews")
@@ -122,4 +122,143 @@ export async function getInterviewsByUserId(
     id: doc.id,
     ...doc.data(),
   })) as Interview[];
+}
+
+interface GetLatestInterviewsParams {
+  userId: string;
+  limit?: number;
+  page?: number;
+  searchQuery?: string;
+}
+
+export interface InterviewResult {
+  interviews: Interview[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+export async function getInterviewsByUserIdList(
+  userId: string,
+  options?: {
+    limit?: number;
+    searchQuery?: string;
+    startAfterId?: string;
+  }
+): Promise<InterviewResult | null> {
+  try {
+    const { limit = 10, searchQuery = "", startAfterId } = options || {};
+    const fetchLimit = limit + 1;
+
+    // 1) Base query
+    let queryRef: FirebaseFirestore.Query = db
+      .collection("interviews")
+      .where("userId", "==", userId);
+
+    // 2) Optional text filter on role & techstack
+    if (searchQuery) {
+      queryRef = queryRef
+        .where("role", "==", searchQuery)
+        .where("techstack", "array-contains", searchQuery);
+    }
+
+    // 3) Order and (optional) cursor
+    queryRef = queryRef.orderBy("createdAt", "desc");
+    if (startAfterId) {
+      const lastSnap = await db
+        .collection("interviews")
+        .doc(startAfterId)
+        .get();
+      if (lastSnap.exists) {
+        queryRef = queryRef.startAfter(lastSnap);
+      }
+    }
+
+    // 4) Fetch one extra to detect “hasMore”
+    const snapshot = await queryRef.limit(fetchLimit).get();
+
+    // 5) Map to your Interview type
+    const allDocs = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Interview[];
+
+    // 6) Determine if there’s another page
+    const hasMore = allDocs.length > limit;
+    const interviews = hasMore ? allDocs.slice(0, limit) : allDocs;
+
+    // 7) Compute nextCursor (the last doc id of this batch)
+    const nextCursor = hasMore ? snapshot.docs[limit].id : undefined;
+
+    return { interviews, hasMore, nextCursor };
+  } catch (error) {
+    console.error("Error fetching user interviews:", error);
+    return null;
+  }
+}
+
+export async function getLatestInterviewsList(
+  userId: string,
+  options?: {
+    limit?: number;
+    searchQuery?: string;
+    startAfterId?: string;
+  }
+): Promise<InterviewResult | null> {
+  try {
+    const { limit = 10, searchQuery = "", startAfterId } = options || {};
+    const fetchLimit = limit + 1;
+
+    // 1) Base Firestore query (no role/techstack filters here)
+    let queryRef = db
+      .collection("interviews")
+      .orderBy("createdAt", "desc")
+      .where("finalized", "==", true)
+      .where("userId", "!=", userId);
+
+    // 2) Cursor for pagination
+    if (startAfterId) {
+      const lastSnap = await db
+        .collection("interviews")
+        .doc(startAfterId)
+        .get();
+      if (lastSnap.exists) {
+        queryRef = queryRef.startAfter(lastSnap);
+      }
+    }
+
+    // 3) Fetch (one extra to detect hasMore)
+    const snapshot = await queryRef.limit(fetchLimit).get();
+    const all = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Interview[];
+
+    // 4) Client‑side substring filter
+    let filtered = all;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = all.filter((intr) => {
+        const roleMatch =
+          typeof intr.role === "string" && intr.role.toLowerCase().includes(q);
+
+        const techMatch =
+          Array.isArray(intr.techstack) &&
+          intr.techstack.some(
+            (t) => typeof t === "string" && t.toLowerCase().includes(q)
+          );
+
+        return roleMatch || techMatch;
+      });
+    }
+
+    // 5) Determine pagination results
+    const hasMore = filtered.length > limit;
+    const interviews = hasMore ? filtered.slice(0, limit) : filtered;
+    const nextCursor = hasMore ? snapshot.docs[limit].id : undefined;
+
+    return { interviews, hasMore, nextCursor };
+  } catch (error) {
+    console.error("Error fetching user interviews:", error);
+    return null;
+  }
 }

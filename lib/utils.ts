@@ -15,10 +15,24 @@ const normalizeTechName = (tech: string) => {
 };
 
 const checkIconExists = async (url: string) => {
+  // Skip actual fetch in server-side rendering
+  if (typeof window === "undefined") {
+    return false;
+  }
+
   try {
-    const response = await fetch(url, { method: "HEAD" });
-    return response.ok; // Returns true if the icon exists
-  } catch {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const response = await fetch(url, {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    console.error(`Failed to check icon at ${url}:`, error);
     return false;
   }
 };
@@ -26,6 +40,10 @@ const checkIconExists = async (url: string) => {
 export const getTechLogos = async (techArray: string[]) => {
   const logoURLs = techArray.map((tech) => {
     const normalized = normalizeTechName(tech);
+    // Skip making requests for undefined tech names
+    if (!normalized) {
+      return { tech, url: "/tech.svg" };
+    }
     return {
       tech,
       url: `${techIconBaseURL}/${normalized}/${normalized}-original.svg`,
@@ -33,10 +51,16 @@ export const getTechLogos = async (techArray: string[]) => {
   });
 
   const results = await Promise.all(
-    logoURLs.map(async ({ tech, url }) => ({
-      tech,
-      url: (await checkIconExists(url)) ? url : "/tech.svg",
-    }))
+    logoURLs.map(async ({ tech, url }) => {
+      // If we already assigned the fallback URL, return it directly
+      if (url === "/tech.svg") {
+        return { tech, url };
+      }
+      return {
+        tech,
+        url: (await checkIconExists(url)) ? url : "/tech.svg",
+      };
+    })
   );
 
   return results;

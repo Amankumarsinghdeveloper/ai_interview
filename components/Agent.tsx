@@ -221,7 +221,7 @@ const Agent = ({
       } else {
         console.log("Error saving feedback");
         toast.error("Failed to generate feedback");
-        router.push("/dashboard");
+        router.push("/interviewslist");
       }
     };
 
@@ -267,7 +267,7 @@ const Agent = ({
       }
 
       if (type === "generate") {
-        router.push("/dashboard");
+        router.push("/interviewslist");
       } else {
         await handleGenerateFeedback(messages);
       }
@@ -569,15 +569,15 @@ const Agent = ({
         } else {
           console.error("Error saving feedback");
           toast.error("Failed to generate feedback");
-          router.push("/dashboard");
+          router.push("/interviewslist");
         }
       } catch (error) {
         console.error("Error generating feedback:", error);
         toast.error("Failed to generate feedback");
-        router.push("/dashboard");
+        router.push("/interviewslist");
       }
     } else if (type === "generate") {
-      router.push("/dashboard");
+      router.push("/interviewslist");
     }
   };
 
