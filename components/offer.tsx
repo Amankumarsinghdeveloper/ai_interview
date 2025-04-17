@@ -14,7 +14,7 @@ const Offer = () => {
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-white/20 backdrop-blur-sm rounded-md px-3 py-1.5">
-            <span className="text-white text-sm font-mono">LAUNCHOFF</span>
+            <span className="text-white text-sm font-mono">PREP60</span>
           </div>
           <p className="text-white text-sm">
             for <span className="font-bold">additional 30% OFF</span> at

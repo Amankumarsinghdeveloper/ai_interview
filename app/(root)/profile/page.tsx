@@ -176,7 +176,7 @@ const ProfilePage = async () => {
                   <p>
                     Use code{" "}
                     <span className="font-mono font-bold bg-white/10 px-2 py-0.5 rounded">
-                      LAUNCHOFF
+                    PREP60
                     </span>{" "}
                     for additional 30% OFF
                   </p>
