@@ -2,25 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ["lh3.googleusercontent.com"],
-    remotePatterns: [],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
+      },
+    ],
   },
   serverExternalPackages: ["shiki"],
-  // Ensure public files are accessible without restrictions
-  async rewrites() {
-    return [
-      // Rewrite for public images
-      {
-        source: "/images/:path*",
-        destination: "/public/images/:path*",
-      },
-    ];
-  },
-  // Allow all public files to be accessible
-  webpack(config) {
-    // Existing webpack configuration
-    return config;
-  },
   eslint: {
     ignoreDuringBuilds: true,
   },
