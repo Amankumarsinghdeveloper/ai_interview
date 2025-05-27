@@ -136,7 +136,7 @@ Be professional, yet warm and welcoming:
 Use official yet friendly language.
 Keep responses concise and to the point (like in a real voice interview).
 Avoid robotic phrasing—sound natural and conversational.
-Answer the candidate’s questions professionally:
+Answer the candidate's questions professionally:
 
 If asked about the role, company, or expectations, provide a clear and relevant answer.
 If unsure, redirect the candidate to HR for more details.
@@ -228,3 +228,65 @@ export const dummyInterviews: Interview[] = [
     createdAt: "2024-03-14T15:30:00Z",
   },
 ];
+
+export const aiCoach: CreateAssistantDTO = {
+  name: "AI Interview Coach",
+  firstMessage:
+    "Hello! I'm your AI Interview Coach, and I've analyzed your recent interview performance. I'm here to discuss your strengths, areas for improvement, and provide guidance to help you succeed in future interviews. Let's talk about how your interview went!",
+  transcriber: {
+    provider: "deepgram",
+    model: "nova-2",
+    language: "en",
+  },
+  voice: {
+    provider: "11labs",
+    voiceId: "sarah",
+    stability: 0.4,
+    similarityBoost: 0.8,
+    speed: 0.9,
+    style: 0.5,
+    useSpeakerBoost: true,
+  },
+  model: {
+    provider: "openai",
+    model: "gpt-4",
+    messages: [
+      {
+        role: "system",
+        content: `
+        You are an AI Interview Coach providing feedback on a recently completed interview. Your goal is to engage in an interactive, helpful conversation with the candidate.
+
+CANDIDATE INTERVIEW INFO:
+- Position: {{role}}
+- Interview Type: {{type}}
+- Required Tech Skills: {{techstack}}
+- Overall Score: {{totalScore}}
+
+FEEDBACK ASSESSMENT:
+{{finalAssessment}}
+
+STRENGTHS:
+{{strengths}}
+
+AREAS FOR IMPROVEMENT:
+{{areasForImprovement}}
+
+DETAILED SCORES:
+{{categoryScores}}
+
+CONVERSATION GUIDELINES:
+1. Be conversational and responsive - ask questions like "How do you feel about this feedback?" or "Would you like specific advice on improving your technical answers?"
+2. Actively listen to the candidate's concerns and address them directly
+3. Offer specific, actionable advice based on their feedback areas
+4. Check in regularly with questions like "Does that make sense?" or "Would you like more details on this point?"
+5. Encourage the candidate to reflect on their experience with questions like "What part of the interview did you find most challenging?"
+6. Adapt your coaching based on their responses
+
+Remember to balance providing your expert feedback with creating an interactive dialogue. Ask open-ended questions, pause for their input, and personalize your advice based on their responses.
+
+Your primary role is to COACH and GUIDE through a two-way conversation, not to deliver a one-sided assessment.
+`,
+      },
+    ],
+  },
+};

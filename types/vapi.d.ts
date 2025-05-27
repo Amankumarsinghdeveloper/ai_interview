@@ -23,8 +23,8 @@ interface BaseMessage {
 interface TranscriptMessage extends BaseMessage {
   type: MessageTypeEnum.TRANSCRIPT;
   role: MessageRoleEnum;
-  transcriptType: TranscriptMessageTypeEnum;
   transcript: string;
+  transcriptType: TranscriptMessageTypeEnum;
 }
 
 interface FunctionCallMessage extends BaseMessage {
@@ -44,7 +44,27 @@ interface FunctionCallResultMessage extends BaseMessage {
   };
 }
 
+interface AddMessage extends BaseMessage {
+  type: MessageTypeEnum.ADD_MESSAGE;
+  message: {
+    role: MessageRoleEnum;
+    content: string;
+  };
+}
+
 type Message =
   | TranscriptMessage
   | FunctionCallMessage
-  | FunctionCallResultMessage;
+  | FunctionCallResultMessage
+  | AddMessage;
+
+export {
+  MessageTypeEnum,
+  MessageRoleEnum,
+  TranscriptMessageTypeEnum,
+  TranscriptMessage,
+  FunctionCallMessage,
+  FunctionCallResultMessage,
+  AddMessage,
+  Message,
+};
